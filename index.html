@@ -64,43 +64,9 @@ const SUPABASE_URL  = 'https://nswtjltxvzrfgehnlgky.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd3RqbHR4dnpyZmdlaG5sZ2t5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MjI1NTUsImV4cCI6MjA5MDQ5ODU1NX0.mliGqUey1fZPcSBRCeyY_X7357kt3nM1-fU2p3n8dgM';
 /* ──────────────────────────────────────────────────────────── */
 
-/* Guard — shows a clear error if keys are still placeholders */
-const KEYS_MISSING = !SUPABASE_URL.includes('.supabase.co') || SUPABASE_ANON.startsWith('eyYOUR');
-
-let supabase = null;
-if (!KEYS_MISSING) {
-  try {
-    supabase = supabase_js.createClient(SUPABASE_URL, SUPABASE_ANON, {
-      auth: { persistSession: true, autoRefreshToken: true }
-    });
-  } catch(e) {
-    console.error('Supabase init failed:', e);
-  }
-}
-
-/* Config error screen — shown instead of blank page */
-function ConfigError() {
-  return (
-    <div style={{minHeight:'100vh',background:'var(--forest)',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
-      <div style={{background:'white',borderRadius:20,padding:'32px 28px',maxWidth:440,width:'100%',textAlign:'center'}}>
-        <div style={{fontSize:36,marginBottom:16}}>⚙️</div>
-        <h2 style={{fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:'1.3rem',color:'var(--ink)',marginBottom:12}}>
-          Supabase keys not set
-        </h2>
-        <p style={{fontSize:14,color:'var(--ink-3)',lineHeight:1.7,marginBottom:20}}>
-          Open <code style={{background:'#f3f3f0',padding:'2px 6px',borderRadius:4,fontSize:13}}>index.html</code> and replace the two placeholder values at the top of the script with your real Supabase URL and anon key.
-        </p>
-        <div style={{background:'#f3f3f0',borderRadius:10,padding:'14px 16px',textAlign:'left',fontSize:12,fontFamily:'monospace',lineHeight:1.8,color:'#333'}}>
-          <div style={{color:'#999'}}>// Find these two lines:</div>
-          <div>const SUPABASE_URL = <span style={{color:'#c0392b'}}>'https://YOURPROJECT...'</span>;</div>
-          <div>const SUPABASE_ANON = <span style={{color:'#c0392b'}}>'eyYOUR_ANON...'</span>;</div>
-          <div style={{marginTop:8,color:'#999'}}>// Replace with your real values from:</div>
-          <div style={{color:'#1A6B47'}}>supabase.com → Settings → API</div>
-        </div>
-      </div>
-    </div>
-  );
-}
+const supabase = supabase_js.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
 
 /* ── Brand / chart colors ─────────────────────── */
 const CHART_COLORS=['#1A6B47','#D4651A','#0D6E72','#7B2560','#5C3D2E','#1B5FA8','#5E3B8F','#2D8A3F'];
@@ -641,9 +607,6 @@ function ComparisonPage({currentIncome,currentEss,currentLife,desiredEss,desired
    ROOT — Auth gate + App state
    ──────────────────────────────────────────────────────────── */
 function Root(){
-  // Show config screen immediately if keys are placeholders
-  if(KEYS_MISSING||!supabase) return <ConfigError/>;
-
   const[authState,setAuthState]=useState('init');
   const[sentEmail,setSentEmail]=useState('');
   const[user,setUser]=useState(null);
