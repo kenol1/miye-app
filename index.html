@@ -11,6 +11,7 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
@@ -37,24 +38,17 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:2px}
-
 @keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes scaleUp{from{opacity:0;transform:scale(0.93)}to{opacity:1;transform:scale(1)}}
-@keyframes slideRight{from{width:0}to{width:var(--target-w)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
 .fu{animation:fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both}
 .fi{animation:fadeIn 0.4s ease both}
 .su{animation:scaleUp 0.4s cubic-bezier(0.22,1,0.36,1) both}
 .d1{animation-delay:.06s}.d2{animation-delay:.12s}.d3{animation-delay:.18s}
 .d4{animation-delay:.24s}.d5{animation-delay:.30s}.d6{animation-delay:.36s}
 .d7{animation-delay:.42s}.d8{animation-delay:.48s}
-
-/* Utility */
-.hide{display:none!important}
 </style>
 </head>
 <body>
@@ -62,24 +56,335 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 <script type="text/babel">
 const {useState,useEffect,useCallback,useRef,useMemo}=React;
 
-/* ── Brand colors ─────────────────────────────── */
+/* ────────────────────────────────────────────────────────────
+   ██ STEP 1 OF 1 — PASTE YOUR SUPABASE KEYS HERE
+   Get them from: supabase.com → your project → Settings → API
+   ──────────────────────────────────────────────────────────── */
+const SUPABASE_URL  = 'https://nswtjltxvzrfgehnlgky.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd3RqbHR4dnpyZmdlaG5sZ2t5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MjI1NTUsImV4cCI6MjA5MDQ5ODU1NX0.mliGqUey1fZPcSBRCeyY_X7357kt3nM1-fU2p3n8dgM';──────────────────────────────────────────────────────────── */
+
+/* Guard — shows a clear error if keys are still placeholders */
+const KEYS_MISSING = !SUPABASE_URL.includes('.supabase.co') || SUPABASE_ANON.startsWith('eyYOUR');
+
+let supabase = null;
+if (!KEYS_MISSING) {
+  try {
+    supabase = supabase_js.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { persistSession: true, autoRefreshToken: true }
+    });
+  } catch(e) {
+    console.error('Supabase init failed:', e);
+  }
+}
+
+/* Config error screen — shown instead of blank page */
+function ConfigError() {
+  return (
+    <div style={{minHeight:'100vh',background:'var(--forest)',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+      <div style={{background:'white',borderRadius:20,padding:'32px 28px',maxWidth:440,width:'100%',textAlign:'center'}}>
+        <div style={{fontSize:36,marginBottom:16}}>⚙️</div>
+        <h2 style={{fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:'1.3rem',color:'var(--ink)',marginBottom:12}}>
+          Supabase keys not set
+        </h2>
+        <p style={{fontSize:14,color:'var(--ink-3)',lineHeight:1.7,marginBottom:20}}>
+          Open <code style={{background:'#f3f3f0',padding:'2px 6px',borderRadius:4,fontSize:13}}>index.html</code> and replace the two placeholder values at the top of the script with your real Supabase URL and anon key.
+        </p>
+        <div style={{background:'#f3f3f0',borderRadius:10,padding:'14px 16px',textAlign:'left',fontSize:12,fontFamily:'monospace',lineHeight:1.8,color:'#333'}}>
+          <div style={{color:'#999'}}>// Find these two lines:</div>
+          <div>const SUPABASE_URL = <span style={{color:'#c0392b'}}>'https://YOURPROJECT...'</span>;</div>
+          <div>const SUPABASE_ANON = <span style={{color:'#c0392b'}}>'eyYOUR_ANON...'</span>;</div>
+          <div style={{marginTop:8,color:'#999'}}>// Replace with your real values from:</div>
+          <div style={{color:'#1A6B47'}}>supabase.com → Settings → API</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Brand / chart colors ─────────────────────── */
 const CHART_COLORS=['#1A6B47','#D4651A','#0D6E72','#7B2560','#5C3D2E','#1B5FA8','#5E3B8F','#2D8A3F'];
 const CAT_COLORS={Housing:CHART_COLORS[0],Food:CHART_COLORS[1],Transport:CHART_COLORS[2],Technology:CHART_COLORS[3],Health:CHART_COLORS[4],Personal:CHART_COLORS[5],Entertainment:CHART_COLORS[6],'Family & Obligations':CHART_COLORS[7]};
 
-/* ── Logo SVG ─────────────────────────────────── */
+/* ── Logo ─────────────────────────────────────── */
 const MiyeLogo=({size=32,textColor='#0F3D28',markOnly=false})=>(
   <svg height={size} viewBox={markOnly?"0 0 60 60":"0 0 200 60"} fill="none" xmlns="http://www.w3.org/2000/svg">
-    {/* Mark — rounded M shape in two greens */}
     <path d="M8 14 C8 8 13 4 19 6 L30 12 L41 6 C47 4 52 8 52 14 L52 36 C52 42 47 48 41 46 L30 40 L19 46 C13 48 8 42 8 36 Z" fill="#5DC130"/>
     <path d="M19 22 L25 34 L30 28 L35 34 L41 22" stroke="white" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     <path d="M22 36 C22 36 26 42 30 46 C34 42 38 36 38 36" fill="#A8D830" opacity="0.85"/>
-    {!markOnly&&(
-      <text x="68" y="42" fontFamily="'Nunito',sans-serif" fontWeight="800" fontSize="30" fill={textColor} letterSpacing="-0.5">miye</text>
-    )}
+    {!markOnly&&<text x="68" y="42" fontFamily="'Nunito',sans-serif" fontWeight="800" fontSize="30" fill={textColor} letterSpacing="-0.5">miye</text>}
   </svg>
 );
 
-/* ── Lifestyle Presets ────────────────────────── */
+/* ── Shared UI atoms ──────────────────────────── */
+const Spinner=({size=24,color='#5DC130'})=>(
+  <div style={{width:size,height:size,border:`2.5px solid ${color}30`,borderTopColor:color,borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+);
+
+function AuthInput({type='text',value,onChange,placeholder,disabled}){
+  return(
+    <div style={{border:'1.5px solid var(--border)',borderRadius:'var(--rad-xs)',overflow:'hidden',background:'var(--white)',transition:'border-color 0.15s'}}
+      onFocusCapture={e=>e.currentTarget.style.borderColor='var(--mid)'}
+      onBlurCapture={e=>e.currentTarget.style.borderColor='var(--border)'}
+    >
+      <input type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled}
+        style={{width:'100%',padding:'14px 16px',fontSize:15,color:'var(--ink)',background:'transparent',border:'none',outline:'none',fontFamily:'inherit',opacity:disabled?0.5:1}}/>
+    </div>
+  );
+}
+
+function PrimaryBtn({onClick,disabled,loading,children,style={}}){
+  return(
+    <button onClick={onClick} disabled={disabled||loading}
+      style={{width:'100%',padding:'14px',background:disabled||loading?'var(--bg-2)':'var(--forest)',color:disabled||loading?'var(--ink-4)':'#fff',border:'none',borderRadius:'var(--rad-xs)',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:15,cursor:disabled||loading?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:10,transition:'all 0.2s',boxShadow:disabled||loading?'none':'0 2px 10px rgba(15,61,40,0.3)',...style}}>
+      {loading&&<Spinner size={18} color={disabled?'var(--ink-4)':'#fff'}/>}
+      {children}
+    </button>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   AUTH SCREENS
+   ──────────────────────────────────────────────────────────── */
+
+/* ── 1. Login — magic link ────────────────────── */
+function LoginScreen({onSent}){
+  const[email,setEmail]=useState('');
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState('');
+
+  const handleLogin=async()=>{
+    if(!email||!email.includes('@'))return setError('Please enter a valid email address.');
+    setError('');setLoading(true);
+    const{error:err}=await supabase.auth.signInWithOtp({
+      email,
+      options:{emailRedirectTo:window.location.origin}
+    });
+    setLoading(false);
+    if(err)return setError(err.message);
+    onSent(email);
+  };
+
+  return(
+    <div style={{minHeight:'100vh',background:'var(--forest)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px',position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)',backgroundSize:'40px 40px',pointerEvents:'none'}}/>
+      <div style={{position:'absolute',top:'5%',left:'50%',transform:'translateX(-50%)',width:'80%',maxWidth:500,height:280,background:'radial-gradient(ellipse,rgba(93,193,48,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
+
+      <div className="fu" style={{width:'100%',maxWidth:400,position:'relative',zIndex:1}}>
+        <div style={{textAlign:'center',marginBottom:32}}>
+          <MiyeLogo size={38} textColor="#fff"/>
+          <h1 style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.8rem',fontWeight:900,color:'#fff',marginTop:20,marginBottom:8,lineHeight:1.1}}>
+            Welcome back.
+          </h1>
+          <p style={{fontSize:15,color:'rgba(255,255,255,0.55)',lineHeight:1.6}}>
+            Enter your email and we'll send you a magic link — no password needed.
+          </p>
+        </div>
+
+        <div style={{background:'var(--white)',borderRadius:'var(--rad-xl)',padding:'28px 24px',boxShadow:'var(--shadow-lg)'}}>
+          <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:10}}>Your email address</p>
+          <div style={{marginBottom:16}}>
+            <AuthInput type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" disabled={loading}/>
+          </div>
+          {error&&(
+            <div style={{background:'var(--red-soft)',border:'1px solid rgba(192,57,43,0.2)',borderRadius:'var(--rad-xs)',padding:'10px 14px',marginBottom:14,fontSize:13,color:'var(--red)'}}>
+              {error}
+            </div>
+          )}
+          <PrimaryBtn onClick={handleLogin} loading={loading} disabled={!email}>
+            {loading?'Sending link…':'Send magic link →'}
+          </PrimaryBtn>
+          <p style={{fontSize:12,color:'var(--ink-4)',textAlign:'center',marginTop:14,lineHeight:1.5}}>
+            We'll email you a secure link. Click it to sign in instantly.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── 2. Check your email ──────────────────────── */
+function CheckEmailScreen({email,onBack}){
+  return(
+    <div style={{minHeight:'100vh',background:'var(--forest)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px',position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)',backgroundSize:'40px 40px',pointerEvents:'none'}}/>
+
+      <div className="su" style={{width:'100%',maxWidth:400,position:'relative',zIndex:1}}>
+        <div style={{background:'var(--white)',borderRadius:'var(--rad-xl)',padding:'36px 28px',boxShadow:'var(--shadow-lg)',textAlign:'center'}}>
+          <div style={{width:64,height:64,background:'var(--green-light)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px',fontSize:28}}>
+            📬
+          </div>
+          <h2 style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.4rem',fontWeight:900,color:'var(--ink)',marginBottom:10}}>Check your inbox</h2>
+          <p style={{fontSize:15,color:'var(--ink-3)',lineHeight:1.65,marginBottom:6}}>
+            We sent a magic link to
+          </p>
+          <p style={{fontSize:15,fontWeight:700,color:'var(--mid)',marginBottom:20}}>{email}</p>
+          <p style={{fontSize:13,color:'var(--ink-4)',lineHeight:1.6,marginBottom:24}}>
+            Click the link in that email to sign in. It expires in 1 hour. Check your spam folder if you don't see it.
+          </p>
+          <button onClick={onBack}
+            style={{background:'none',border:'1px solid var(--border)',borderRadius:'var(--rad-xs)',padding:'11px 20px',fontSize:13,color:'var(--ink-3)',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+            ← Try a different email
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── 3. Access code entry ─────────────────────── */
+function AccessCodeScreen({user,onGranted}){
+  const[code,setCode]=useState('');
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState('');
+  const[success,setSuccess]=useState(false);
+
+  const handleSubmit=async()=>{
+    const trimmed=code.trim().toUpperCase();
+    if(!trimmed)return setError('Please enter your access code.');
+    setError('');setLoading(true);
+
+    // 1. Find code
+    const{data:codeRow,error:findErr}=await supabase
+      .from('access_codes')
+      .select('*')
+      .eq('code',trimmed)
+      .eq('used',false)
+      .single();
+
+    if(findErr||!codeRow){
+      setLoading(false);
+      return setError('That code is invalid or has already been used. Double-check and try again.');
+    }
+
+    // 2. Mark code as used
+    const{error:updateErr}=await supabase
+      .from('access_codes')
+      .update({used:true,used_by:user.email})
+      .eq('code',trimmed);
+
+    if(updateErr){setLoading(false);return setError('Something went wrong. Please try again.');}
+
+    // 3. Grant access in profiles
+    const{error:profileErr}=await supabase
+      .from('profiles')
+      .upsert({id:user.id,email:user.email,has_access:true},{onConflict:'id'});
+
+    if(profileErr){setLoading(false);return setError('Something went wrong. Please try again.');}
+
+    setSuccess(true);
+    setTimeout(()=>onGranted(),1200);
+  };
+
+  return(
+    <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+      <div className="fu" style={{width:'100%',maxWidth:420}}>
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <MiyeLogo size={34} textColor="var(--forest)"/>
+        </div>
+
+        <div style={{background:'var(--white)',borderRadius:'var(--rad-xl)',padding:'28px 24px',boxShadow:'var(--shadow)',border:'1px solid var(--border)'}}>
+          {success?(
+            <div style={{textAlign:'center',padding:'16px 0'}}>
+              <div style={{fontSize:40,marginBottom:12}}>🎉</div>
+              <h2 style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:'var(--mid)',marginBottom:6}}>Access granted!</h2>
+              <p style={{fontSize:14,color:'var(--ink-3)'}}>Taking you in now…</p>
+            </div>
+          ):(
+            <>
+              <div style={{marginBottom:20}}>
+                <div style={{width:48,height:48,background:'var(--green-light)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:14}}>🔑</div>
+                <h2 style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:'var(--ink)',marginBottom:6}}>Enter your access code</h2>
+                <p style={{fontSize:14,color:'var(--ink-3)',lineHeight:1.6}}>
+                  Miye is invite-only right now. Enter the access code you were given to unlock the app.
+                </p>
+              </div>
+
+              <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:10}}>Access code</p>
+              <div style={{marginBottom:16}}>
+                <div style={{border:'1.5px solid var(--border)',borderRadius:'var(--rad-xs)',overflow:'hidden',background:'var(--bg)',transition:'border-color 0.15s'}}
+                  onFocusCapture={e=>e.currentTarget.style.borderColor='var(--mid)'}
+                  onBlurCapture={e=>e.currentTarget.style.borderColor='var(--border)'}
+                >
+                  <input
+                    type="text" value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
+                    placeholder="MIYE-XXXX" maxLength={20}
+                    onKeyDown={e=>e.key==='Enter'&&handleSubmit()}
+                    style={{width:'100%',padding:'14px 16px',fontSize:18,fontWeight:800,color:'var(--forest)',background:'transparent',border:'none',outline:'none',fontFamily:"'Nunito',sans-serif",letterSpacing:'0.1em',textAlign:'center'}}
+                  />
+                </div>
+              </div>
+
+              {error&&(
+                <div style={{background:'var(--red-soft)',border:'1px solid rgba(192,57,43,0.15)',borderRadius:'var(--rad-xs)',padding:'10px 14px',marginBottom:14,fontSize:13,color:'var(--red)',lineHeight:1.5}}>
+                  {error}
+                </div>
+              )}
+
+              <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!code.trim()}>
+                {loading?'Checking code…':'Unlock Miye →'}
+              </PrimaryBtn>
+
+              <p style={{fontSize:12,color:'var(--ink-4)',textAlign:'center',marginTop:14,lineHeight:1.5}}>
+                Signed in as <strong style={{color:'var(--ink-3)'}}>{user.email}</strong>
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── 4. Initializing / session check ─────────── */
+function InitScreen(){
+  return(
+    <div style={{minHeight:'100vh',background:'var(--forest)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>
+      <MiyeLogo size={36} textColor="#fff"/>
+      <Spinner size={28} color="#5DC130"/>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   LOADING SCREEN (results anticipation)
+   ──────────────────────────────────────────────────────────── */
+function LoadingScreen({onDone}){
+  const steps=['Crunching your numbers…','Mapping your lifestyle…','Your picture is ready ✓'];
+  const[step,setStep]=useState(0);
+  useEffect(()=>{
+    const t1=setTimeout(()=>setStep(1),600);
+    const t2=setTimeout(()=>setStep(2),1200);
+    const t3=setTimeout(onDone,1900);
+    return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3)};
+  },[]);
+  return(
+    <div style={{minHeight:'100vh',background:'var(--forest)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'2rem',position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)',backgroundSize:'40px 40px'}}/>
+      <div style={{position:'relative',zIndex:1,textAlign:'center',maxWidth:320}}>
+        <div style={{marginBottom:32,display:'flex',justifyContent:'center'}}>
+          <MiyeLogo size={40} textColor="#fff"/>
+        </div>
+        <Spinner size={52} color="#5DC130"/>
+        <div style={{display:'flex',flexDirection:'column',gap:14,marginTop:36}}>
+          {steps.map((s,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:12,opacity:i<=step?1:0.2,transition:'opacity 0.5s ease'}}>
+              <div style={{width:22,height:22,borderRadius:'50%',background:i<step?'#5DC130':i===step?'rgba(93,193,48,0.35)':'rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'background 0.4s'}}>
+                {i<step?<span style={{color:'#fff',fontSize:11,fontWeight:800}}>✓</span>:<div style={{width:8,height:8,borderRadius:'50%',background:i===step?'#5DC130':'transparent',animation:i===step?'pulse 1s infinite':'none'}}/>}
+              </div>
+              <span style={{fontSize:15,color:i<=step?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.25)',fontWeight:i===step?600:400,transition:'all 0.4s'}}>{s}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   MIYE APP  (only shown to users with has_access = true)
+   ──────────────────────────────────────────────────────────── */
+
+/* ── Presets ──────────────────────────────────── */
 const PRESETS={
   comfortable:{label:'Comfortable',emoji:'🏡',tag:'Stable & steady',desc:'Bills paid, eating well, saving consistently. Life is manageable and good.',color:'#1A6B47',bg:'#EBF5EE',
     ess:{housing:{annualRent:600000,utilities:15000,generatorFuel:20000,estateDues:5000},food:{groceries:40000,eatingOut:20000},transport:{fuel:30000,publicTransport:0,rideHailing:15000},technology:{dataInternet:10000,phoneBills:5000},health:{insurance:120000,pharmacy:8000}},
@@ -94,11 +399,8 @@ const PRESETS={
     ess:{housing:{annualRent:900000,utilities:18000,generatorFuel:15000,estateDues:0},food:{groceries:50000,eatingOut:35000},transport:{fuel:0,publicTransport:5000,rideHailing:30000},technology:{dataInternet:15000,phoneBills:5000},health:{insurance:150000,pharmacy:5000}},
     life:{personal:{clothing:25000,grooming:20000},entertainment:{outings:25000,subscriptions:8000,gym:10000},familyObligations:{familySupport:20000,domesticHelp:0,savings:80000,customAmount:0}}},
 };
-
 const EMPTY_ESS={housing:{annualRent:0,utilities:0,generatorFuel:0,estateDues:0},food:{groceries:0,eatingOut:0},transport:{fuel:0,publicTransport:0,rideHailing:0},technology:{dataInternet:0,phoneBills:0},health:{insurance:0,pharmacy:0}};
 const EMPTY_LIFE={personal:{clothing:0,grooming:0},entertainment:{outings:0,subscriptions:0,gym:0},familyObligations:{familySupport:0,domesticHelp:0,savings:0,customAmount:0}};
-
-/* ── Helpers ──────────────────────────────────── */
 const fmt=n=>'₦'+Math.round(n||0).toLocaleString('en-NG');
 const fmtShort=n=>{const v=Math.round(n||0);return v>=1000000?'₦'+(v/1000000).toFixed(1)+'M':v>=1000?'₦'+(v/1000).toFixed(0)+'k':'₦'+v.toLocaleString('en-NG')};
 const pct=(a,b)=>b>0?Math.round((a/b)*100):0;
@@ -117,681 +419,275 @@ function calcTotals(ess,life){
   const lifeTotal=personal+ent+family;
   const total=essTotal+lifeTotal;
   const cats=[
-    {category:'Housing',amount:housing},{category:'Food',amount:food},
-    {category:'Transport',amount:transport},{category:'Technology',amount:tech},
-    {category:'Health',amount:health},{category:'Personal',amount:personal},
+    {category:'Housing',amount:housing},{category:'Food',amount:food},{category:'Transport',amount:transport},
+    {category:'Technology',amount:tech},{category:'Health',amount:health},{category:'Personal',amount:personal},
     {category:'Entertainment',amount:ent},{category:'Family & Obligations',amount:family},
   ].map(d=>({...d,pct:pct(d.amount,total)})).sort((a,b)=>b.amount-a.amount);
   return{housing,food,transport,tech,health,essTotal,personal,ent,family,lifeTotal,total,cats};
 }
 
-/* ── DonutChart ───────────────────────────────── */
 function DonutChart({cats,total,size=180,label=''}){
-  const [hov,setHov]=useState(null);
+  const[hov,setHov]=useState(null);
   const cx=size/2,cy=size/2,R=size*0.41,ir=size*0.27;
-  if(!total)return(
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="#E2E0DA" strokeWidth={size*0.13}/>
-      <text x={cx} y={cy+5} textAnchor="middle" fill="#A8A89E" fontSize={size*0.07} fontFamily="Plus Jakarta Sans">Empty</text>
-    </svg>
-  );
+  if(!total)return(<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}><circle cx={cx} cy={cy} r={R} fill="none" stroke="#E2E0DA" strokeWidth={size*0.13}/><text x={cx} y={cy+5} textAnchor="middle" fill="#A8A89E" fontSize={size*0.07} fontFamily="Plus Jakarta Sans">Empty</text></svg>);
   let ang=-Math.PI/2;
   const slices=cats.filter(d=>d.amount>0).map((d,i)=>{
-    const frac=d.amount/total,sw=frac*2*Math.PI,sa=ang;ang+=sw;
-    const la=sw>Math.PI?1:0,mid=sa+sw/2;
-    const x1=cx+R*Math.cos(sa),y1=cy+R*Math.sin(sa);
-    const x2=cx+R*Math.cos(ang),y2=cy+R*Math.sin(ang);
-    const ix1=cx+ir*Math.cos(ang),iy1=cy+ir*Math.sin(ang);
-    const ix2=cx+ir*Math.cos(sa),iy2=cy+ir*Math.sin(sa);
+    const frac=d.amount/total,sw=frac*2*Math.PI,sa=ang;ang+=sw;const la=sw>Math.PI?1:0,mid=sa+sw/2;
+    const x1=cx+R*Math.cos(sa),y1=cy+R*Math.sin(sa),x2=cx+R*Math.cos(ang),y2=cy+R*Math.sin(ang);
+    const ix1=cx+ir*Math.cos(ang),iy1=cy+ir*Math.sin(ang),ix2=cx+ir*Math.cos(sa),iy2=cy+ir*Math.sin(sa);
     return{...d,path:`M${x1} ${y1} A${R} ${R} 0 ${la} 1 ${x2} ${y2} L${ix1} ${iy1} A${ir} ${ir} 0 ${la} 0 ${ix2} ${iy2} Z`,frac,mid,color:CAT_COLORS[d.category]||CHART_COLORS[i%8]};
   });
   const hSlice=hov?slices.find(s=>s.category===hov):null;
   return(
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{overflow:'visible'}}>
-      {slices.map(s=>{
-        const isH=hov===s.category;
-        return<path key={s.category} d={s.path} fill={s.color} stroke="#F8F7F3" strokeWidth="1.5"
-          style={{transform:isH?`translate(${Math.cos(s.mid)*5}px,${Math.sin(s.mid)*5}px)`:'none',transition:'all 0.22s ease',cursor:'pointer',opacity:hov&&!isH?0.45:1}}
-          onMouseEnter={()=>setHov(s.category)} onMouseLeave={()=>setHov(null)} onTouchStart={()=>setHov(s.category)} onTouchEnd={()=>setTimeout(()=>setHov(null),800)}/>;
-      })}
-      {hSlice?(
-        <>
-          <text x={cx} y={cy-size*0.07} textAnchor="middle" fill={hSlice.color} fontSize={size*0.065} fontWeight="700" fontFamily="Nunito,sans-serif">{hSlice.category.split(' ')[0]}</text>
-          <text x={cx} y={cy+size*0.05} textAnchor="middle" fill="#0F0F0D" fontSize={size*0.075} fontWeight="800" fontFamily="Nunito,sans-serif">{fmtShort(hSlice.amount)}</text>
-          <text x={cx} y={cy+size*0.13} textAnchor="middle" fill="#6A6A60" fontSize={size*0.06} fontFamily="Plus Jakarta Sans">{Math.round(hSlice.frac*100)}%</text>
-        </>
-      ):(
-        <>
-          {label&&<text x={cx} y={cy-size*0.06} textAnchor="middle" fill="#6A6A60" fontSize={size*0.062} fontFamily="Plus Jakarta Sans">{label}</text>}
-          <text x={cx} y={label?cy+size*0.06:cy+size*0.04} textAnchor="middle" fill="#0F0F0D" fontSize={size*0.082} fontWeight="800" fontFamily="Nunito,sans-serif">{fmtShort(total)}</text>
-          <text x={cx} y={label?cy+size*0.13:cy+size*0.12} textAnchor="middle" fill="#A8A89E" fontSize={size*0.055} fontFamily="Plus Jakarta Sans">/ month</text>
-        </>
-      )}
+      {slices.map(s=>{const isH=hov===s.category;return<path key={s.category} d={s.path} fill={s.color} stroke="#F8F7F3" strokeWidth="1.5" style={{transform:isH?`translate(${Math.cos(s.mid)*5}px,${Math.sin(s.mid)*5}px)`:'none',transition:'all 0.22s ease',cursor:'pointer',opacity:hov&&!isH?0.45:1}} onMouseEnter={()=>setHov(s.category)} onMouseLeave={()=>setHov(null)} onTouchStart={()=>setHov(s.category)} onTouchEnd={()=>setTimeout(()=>setHov(null),800)}/>;})}
+      {hSlice?(<><text x={cx} y={cy-size*0.07} textAnchor="middle" fill={hSlice.color} fontSize={size*0.065} fontWeight="700" fontFamily="Nunito,sans-serif">{hSlice.category.split(' ')[0]}</text><text x={cx} y={cy+size*0.05} textAnchor="middle" fill="#0F0F0D" fontSize={size*0.075} fontWeight="800" fontFamily="Nunito,sans-serif">{fmtShort(hSlice.amount)}</text><text x={cx} y={cy+size*0.13} textAnchor="middle" fill="#6A6A60" fontSize={size*0.06} fontFamily="Plus Jakarta Sans">{Math.round(hSlice.frac*100)}%</text></>):(<>{label&&<text x={cx} y={cy-size*0.06} textAnchor="middle" fill="#6A6A60" fontSize={size*0.062} fontFamily="Plus Jakarta Sans">{label}</text>}<text x={cx} y={label?cy+size*0.06:cy+size*0.04} textAnchor="middle" fill="#0F0F0D" fontSize={size*0.082} fontWeight="800" fontFamily="Nunito,sans-serif">{fmtShort(total)}</text><text x={cx} y={label?cy+size*0.13:cy+size*0.12} textAnchor="middle" fill="#A8A89E" fontSize={size*0.055} fontFamily="Plus Jakarta Sans">/ month</text></>)}
     </svg>
   );
 }
 
-/* ── LoadingScreen ────────────────────────────── */
-function LoadingScreen({onDone}){
-  const steps=['Crunching your numbers…','Mapping your lifestyle…','Your picture is ready ✓'];
-  const [step,setStep]=useState(0);
-  const [done,setDone]=useState(false);
-  useEffect(()=>{
-    const t1=setTimeout(()=>setStep(1),600);
-    const t2=setTimeout(()=>setStep(2),1200);
-    const t3=setTimeout(()=>{setDone(true);setTimeout(onDone,400);},1800);
-    return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3)};
-  },[]);
-  return(
-    <div style={{minHeight:'100vh',background:'var(--forest)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'2rem',position:'relative',overflow:'hidden'}}>
-      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)',backgroundSize:'40px 40px'}}/>
-      <div style={{position:'relative',zIndex:1,textAlign:'center',maxWidth:320}}>
-        <div style={{marginBottom:32,display:'flex',justifyContent:'center'}}>
-          <MiyeLogo size={44} textColor="#fff" />
-        </div>
-        <div style={{width:56,height:56,border:'3px solid rgba(93,193,48,0.3)',borderTopColor:'#5DC130',borderRadius:'50%',animation:'spin 0.9s linear infinite',margin:'0 auto 32px'}}/>
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          {steps.map((s,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:10,opacity:i<=step?1:0.25,transition:'opacity 0.4s ease',transform:i<=step?'none':'translateY(4px)'}}>
-              <div style={{width:20,height:20,borderRadius:'50%',background:i<step?'#5DC130':i===step?'rgba(93,193,48,0.4)':'rgba(255,255,255,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'background 0.4s'}}>
-                {i<step&&<span style={{color:'#fff',fontSize:11,fontWeight:800}}>✓</span>}
-                {i===step&&<div style={{width:8,height:8,borderRadius:'50%',background:'#5DC130',animation:'pulse 1s infinite'}}/>}
-              </div>
-              <span style={{fontSize:15,color:i<=step?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.3)',fontWeight:i===step?600:400,transition:'all 0.4s'}}>{s}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── NumberInput ──────────────────────────────── */
 function NumberInput({value,onChange,annual=false}){
-  const monthly=annual&&value>0?fmt(value/12)+'/mo':null;
-  const ref=useRef();
-  return(
-    <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3,flexShrink:0}}>
-      <div ref={ref} style={{display:'flex',alignItems:'center',gap:4,background:'var(--bg)',border:'1.5px solid var(--border)',borderRadius:10,padding:'9px 12px',minWidth:148,cursor:'text'}} onClick={()=>ref.current.querySelector('input').focus()}
-        onFocusCapture={e=>ref.current.style.borderColor='var(--mid)'}
-        onBlurCapture={e=>ref.current.style.borderColor='var(--border)'}
-      >
-        <span style={{fontSize:13,color:'var(--ink-4)',userSelect:'none'}}>₦</span>
-        <input type="number" value={value||''} onChange={e=>onChange(parseFloat(e.target.value)||0)} placeholder="0" inputMode="numeric"
-          style={{fontSize:15,fontWeight:600,color:'var(--ink)',background:'transparent',border:'none',outline:'none',width:'100%',textAlign:'right',fontFamily:"'Nunito',sans-serif"}}/>
-      </div>
-      {monthly&&<span style={{fontSize:11,color:'var(--teal)',fontWeight:600,paddingRight:2}}>{monthly}</span>}
-    </div>
-  );
+  const ref=useRef();const monthly=annual&&value>0?fmt(value/12)+'/mo':null;
+  return(<div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3,flexShrink:0}}><div ref={ref} style={{display:'flex',alignItems:'center',gap:4,background:'var(--bg)',border:'1.5px solid var(--border)',borderRadius:10,padding:'9px 12px',minWidth:148,cursor:'text'}} onClick={()=>ref.current.querySelector('input').focus()} onFocusCapture={e=>ref.current.style.borderColor='var(--mid)'} onBlurCapture={e=>ref.current.style.borderColor='var(--border)'}><span style={{fontSize:13,color:'var(--ink-4)',userSelect:'none'}}>₦</span><input type="number" value={value||''} onChange={e=>onChange(parseFloat(e.target.value)||0)} placeholder="0" inputMode="numeric" style={{fontSize:15,fontWeight:600,color:'var(--ink)',background:'transparent',border:'none',outline:'none',width:'100%',textAlign:'right',fontFamily:"'Nunito',sans-serif"}}/></div>{monthly&&<span style={{fontSize:11,color:'var(--teal)',fontWeight:600,paddingRight:2}}>{monthly}</span>}</div>);
 }
 
-/* ── ExpenseField ────────────────────────────── */
 function ExpenseField({label,value,onChange,annual=false,last=false}){
-  return(
-    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,padding:'13px 0',borderBottom:last?'none':'1px solid var(--border)'}}>
-      <div style={{flex:1,paddingTop:2}}>
-        <span style={{fontSize:14,color:'var(--ink-2)',lineHeight:1.4,display:'block'}}>{label}</span>
-        {annual&&<span style={{fontSize:11,color:'var(--teal)',fontWeight:600,display:'block',marginTop:2}}>Enter annual · auto ÷12</span>}
-      </div>
-      <NumberInput value={value} onChange={onChange} annual={annual}/>
-    </div>
-  );
+  return(<div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,padding:'13px 0',borderBottom:last?'none':'1px solid var(--border)'}}><div style={{flex:1,paddingTop:2}}><span style={{fontSize:14,color:'var(--ink-2)',lineHeight:1.4,display:'block'}}>{label}</span>{annual&&<span style={{fontSize:11,color:'var(--teal)',fontWeight:600,display:'block',marginTop:2}}>Enter annual · auto ÷12</span>}</div><NumberInput value={value} onChange={onChange} annual={annual}/></div>);
 }
 
-/* ── SectionBlock ────────────────────────────── */
 function SectionBlock({emoji,title,isEssential,total,children}){
-  return(
-    <div style={{background:'var(--white)',borderRadius:'var(--rad)',border:'1px solid var(--border)',overflow:'hidden',boxShadow:'var(--shadow-xs)',marginBottom:10}}>
-      <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,background:isEssential?'var(--white)':'#FAFAF8'}}>
-        <span style={{fontSize:18}}>{emoji}</span>
-        <span style={{fontFamily:"'Nunito',sans-serif",fontSize:15,fontWeight:800,color:'var(--ink)',flex:1}}>{title}</span>
-        <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:20,letterSpacing:'0.05em',textTransform:'uppercase',
-          background:isEssential?'var(--green-light)':'rgba(168,92,0,0.1)',
-          color:isEssential?'var(--mid)':'var(--amber)'}}>
-          {isEssential?'Essential':'Lifestyle'}
-        </span>
-        {total>0&&<span style={{fontSize:13,fontWeight:700,color:isEssential?'var(--mid)':'var(--amber)',marginLeft:4,flexShrink:0}}>{fmt(total)}</span>}
-      </div>
-      <div style={{padding:'0 18px'}}>{children}</div>
-    </div>
-  );
+  return(<div style={{background:'var(--white)',borderRadius:'var(--rad)',border:'1px solid var(--border)',overflow:'hidden',boxShadow:'var(--shadow-xs)',marginBottom:10}}><div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,background:isEssential?'var(--white)':'#FAFAF8'}}><span style={{fontSize:18}}>{emoji}</span><span style={{fontFamily:"'Nunito',sans-serif",fontSize:15,fontWeight:800,color:'var(--ink)',flex:1}}>{title}</span><span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:20,letterSpacing:'0.05em',textTransform:'uppercase',background:isEssential?'var(--green-light)':'rgba(168,92,0,0.1)',color:isEssential?'var(--mid)':'var(--amber)'}}>{isEssential?'Essential':'Lifestyle'}</span>{total>0&&<span style={{fontSize:13,fontWeight:700,color:isEssential?'var(--mid)':'var(--amber)',marginLeft:4,flexShrink:0}}>{fmt(total)}</span>}</div><div style={{padding:'0 18px'}}>{children}</div></div>);
 }
 
-/* ── PresetCard ──────────────────────────────── */
 function PresetCard({id,p,selected,onSelect}){
   const sel=selected===id;
-  return(
-    <button onClick={()=>onSelect(id)} style={{
-      background:sel?p.bg:'var(--white)',border:`2px solid ${sel?p.color:'var(--border)'}`,
-      borderRadius:'var(--rad)',padding:'16px 14px',textAlign:'left',cursor:'pointer',
-      minWidth:155,flexShrink:0,transition:'all 0.2s',
-      boxShadow:sel?`0 0 0 3px ${p.color}20,var(--shadow)`:'var(--shadow-xs)',
-    }}
-    onMouseEnter={e=>{if(!sel){e.currentTarget.style.borderColor=p.color;e.currentTarget.style.boxShadow='var(--shadow)';}}}
-    onMouseLeave={e=>{if(!sel){e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.boxShadow='var(--shadow-xs)';}}}
-    >
-      <span style={{fontSize:20,display:'block',marginBottom:8}}>{p.emoji}</span>
-      <div style={{fontFamily:"'Nunito',sans-serif",fontSize:15,fontWeight:800,color:sel?p.color:'var(--ink)',marginBottom:2}}>{p.label}</div>
-      <div style={{fontSize:10,fontWeight:700,color:sel?p.color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{p.tag}</div>
-      <div style={{fontSize:12,color:'var(--ink-3)',lineHeight:1.4}}>{p.desc}</div>
-    </button>
-  );
+  return(<button onClick={()=>onSelect(id)} style={{background:sel?p.bg:'var(--white)',border:`2px solid ${sel?p.color:'var(--border)'}`,borderRadius:'var(--rad)',padding:'16px 14px',textAlign:'left',cursor:'pointer',minWidth:155,flexShrink:0,transition:'all 0.2s',boxShadow:sel?`0 0 0 3px ${p.color}20,var(--shadow)`:'var(--shadow-xs)'}} onMouseEnter={e=>{if(!sel){e.currentTarget.style.borderColor=p.color;e.currentTarget.style.boxShadow='var(--shadow)';}}} onMouseLeave={e=>{if(!sel){e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.boxShadow='var(--shadow-xs)';}}}>
+    <span style={{fontSize:20,display:'block',marginBottom:8}}>{p.emoji}</span>
+    <div style={{fontFamily:"'Nunito',sans-serif",fontSize:15,fontWeight:800,color:sel?p.color:'var(--ink)',marginBottom:2}}>{p.label}</div>
+    <div style={{fontSize:10,fontWeight:700,color:sel?p.color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{p.tag}</div>
+    <div style={{fontSize:12,color:'var(--ink-3)',lineHeight:1.4}}>{p.desc}</div>
+  </button>);
 }
 
-/* ── Header ──────────────────────────────────── */
-function AppHeader({onBack,backLabel='Back',rightContent}){
-  return(
-    <header style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,247,243,0.96)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderBottom:'1px solid var(--border)',height:56,display:'flex',alignItems:'center',padding:'0 16px',gap:10}}>
-      <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:6,color:'var(--ink-3)',background:'none',border:'none',cursor:'pointer',fontSize:14,fontFamily:'inherit',padding:'8px 0',flexShrink:0,fontWeight:500}}>
-        <span style={{fontSize:18,lineHeight:1}}>←</span><span>{backLabel}</span>
-      </button>
-      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <MiyeLogo size={30} textColor="var(--forest)"/>
-      </div>
-      <div style={{width:80,display:'flex',justifyContent:'flex-end'}}>{rightContent}</div>
-    </header>
-  );
-}
-
-/* ── LandingPage ─────────────────────────────── */
-function LandingPage({onCurrent,onDesired}){
-  return(
-    <div style={{minHeight:'100vh',background:'var(--forest)',position:'relative',overflow:'hidden',display:'flex',flexDirection:'column'}}>
-      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)',backgroundSize:'40px 40px',pointerEvents:'none'}}/>
-      <div style={{position:'absolute',top:'10%',left:'50%',transform:'translateX(-50%)',width:'80%',maxWidth:500,height:280,background:'radial-gradient(ellipse,rgba(93,193,48,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
-      <div style={{position:'absolute',bottom:-100,right:-80,width:320,height:320,borderRadius:'50%',background:'rgba(93,193,48,0.04)',pointerEvents:'none'}}/>
-
-      <div style={{padding:'20px 24px',position:'relative',zIndex:2}}>
-        <MiyeLogo size={34} textColor="#fff"/>
-      </div>
-
-      <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'1rem 20px 2rem',position:'relative',zIndex:2,textAlign:'center'}}>
-        <div className="fu" style={{marginBottom:14}}>
-          <span style={{display:'inline-block',background:'rgba(93,193,48,0.18)',color:'rgba(255,255,255,0.85)',fontSize:12,fontWeight:700,padding:'6px 14px',borderRadius:20,letterSpacing:'0.07em',border:'1px solid rgba(93,193,48,0.25)'}}>FREE · NO ACCOUNT · 100% PRIVATE</span>
-        </div>
-
-        <h1 className="fu d1" style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(2.8rem,9vw,5rem)',fontWeight:900,color:'#fff',lineHeight:1.0,letterSpacing:'-0.025em',marginBottom:20,maxWidth:540}}>
-          What does your<br/><em style={{fontStyle:'italic',color:'#5DC130'}}>real life</em> cost?
-        </h1>
-
-        <p className="fu d2" style={{fontSize:'clamp(0.95rem,3vw,1.1rem)',color:'rgba(255,255,255,0.6)',lineHeight:1.75,maxWidth:400,marginBottom:36,fontWeight:400}}>
-          Most people are guessing their income needs. Miye tells you the exact number — no assumptions, no fluff.
-        </p>
-
-        <div className="fu d3" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,width:'100%',maxWidth:440}}>
-          {[
-            {label:'Map my current life',sub:'See what my life actually costs today',emoji:'📍',action:onCurrent,primary:true},
-            {label:'Design my ideal life',sub:'See what it would cost to live better',emoji:'✦',action:onDesired,primary:false},
-          ].map(opt=>(
-            <button key={opt.label} onClick={opt.action} style={{
-              background:opt.primary?'#fff':'rgba(255,255,255,0.08)',
-              border:opt.primary?'2px solid transparent':'2px solid rgba(255,255,255,0.15)',
-              borderRadius:'var(--rad-lg)',padding:'20px 16px',textAlign:'left',cursor:'pointer',
-              backdropFilter:opt.primary?'none':'blur(8px)',transition:'all 0.2s',
-            }}
-            onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(0,0,0,0.25)';}}
-            onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none';}}
-            >
-              <span style={{fontSize:24,display:'block',marginBottom:10}}>{opt.emoji}</span>
-              <div style={{fontFamily:"'Nunito',sans-serif",fontSize:15,fontWeight:800,color:opt.primary?'var(--forest)':'#fff',marginBottom:5,lineHeight:1.3}}>{opt.label}</div>
-              <div style={{fontSize:12,color:opt.primary?'var(--ink-3)':'rgba(255,255,255,0.5)',lineHeight:1.4}}>{opt.sub}</div>
-            </button>
-          ))}
-        </div>
-
-        <p className="fu d4" style={{marginTop:24,fontSize:12,color:'rgba(255,255,255,0.3)'}}>Takes 3–5 minutes</p>
-      </div>
-
-      <svg viewBox="0 0 1440 70" style={{display:'block',width:'100%',marginTop:'auto',flexShrink:0}} preserveAspectRatio="none">
-        <path d="M0 70 C480 20 960 20 1440 70 L1440 70 L0 70 Z" fill="#F8F7F3"/>
-      </svg>
+function AppHeader({onBack,backLabel='Back',rightContent,user,onSignOut}){
+  return(<header style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,247,243,0.96)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderBottom:'1px solid var(--border)',height:56,display:'flex',alignItems:'center',padding:'0 16px',gap:10}}>
+    <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:6,color:'var(--ink-3)',background:'none',border:'none',cursor:'pointer',fontSize:14,fontFamily:'inherit',padding:'8px 0',flexShrink:0,fontWeight:500}}><span style={{fontSize:18,lineHeight:1}}>←</span><span>{backLabel}</span></button>
+    <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><MiyeLogo size={30} textColor="var(--forest)"/></div>
+    <div style={{width:80,display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8}}>
+      {rightContent}
+      {onSignOut&&<button onClick={onSignOut} style={{fontSize:11,color:'var(--ink-4)',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',fontWeight:600,padding:'4px'}}>Sign out</button>}
     </div>
-  );
+  </header>);
 }
 
-/* ── InputPage ───────────────────────────────── */
-function InputPage({path,income,setIncome,ess,setEss,life,setLife,onResults,onBack}){
+/* ── Landing ──────────────────────────────────── */
+function LandingPage({onCurrent,onDesired,onSignOut}){
+  return(<div style={{minHeight:'100vh',background:'var(--forest)',position:'relative',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+    <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)',backgroundSize:'40px 40px',pointerEvents:'none'}}/>
+    <div style={{position:'absolute',top:'10%',left:'50%',transform:'translateX(-50%)',width:'80%',maxWidth:500,height:280,background:'radial-gradient(ellipse,rgba(93,193,48,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
+    <div style={{padding:'20px 24px',position:'relative',zIndex:2,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <MiyeLogo size={34} textColor="#fff"/>
+      <button onClick={onSignOut} style={{fontSize:12,color:'rgba(255,255,255,0.45)',background:'none',border:'1px solid rgba(255,255,255,0.15)',borderRadius:20,padding:'6px 14px',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>Sign out</button>
+    </div>
+    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'1rem 20px 2rem',position:'relative',zIndex:2,textAlign:'center'}}>
+      <div className="fu" style={{marginBottom:14}}><span style={{display:'inline-block',background:'rgba(93,193,48,0.18)',color:'rgba(255,255,255,0.85)',fontSize:12,fontWeight:700,padding:'6px 14px',borderRadius:20,letterSpacing:'0.07em',border:'1px solid rgba(93,193,48,0.25)'}}>FREE · NO ACCOUNT · 100% PRIVATE</span></div>
+      <h1 className="fu d1" style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(2.8rem,9vw,5rem)',fontWeight:900,color:'#fff',lineHeight:1.0,letterSpacing:'-0.025em',marginBottom:20,maxWidth:540}}>What does your<br/><em style={{fontStyle:'italic',color:'#5DC130'}}>real life</em> cost?</h1>
+      <p className="fu d2" style={{fontSize:'clamp(0.95rem,3vw,1.1rem)',color:'rgba(255,255,255,0.6)',lineHeight:1.75,maxWidth:400,marginBottom:36,fontWeight:400}}>Most people are guessing their income needs. Miye tells you the exact number — no assumptions, no fluff.</p>
+      <div className="fu d3" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,width:'100%',maxWidth:440}}>
+        {[{label:'Map my current life',sub:'See what my life actually costs today',emoji:'📍',action:onCurrent,primary:true},{label:'Design my ideal life',sub:'See what it would cost to live better',emoji:'✦',action:onDesired,primary:false}].map(opt=>(
+          <button key={opt.label} onClick={opt.action} style={{background:opt.primary?'#fff':'rgba(255,255,255,0.08)',border:opt.primary?'2px solid transparent':'2px solid rgba(255,255,255,0.15)',borderRadius:'var(--rad-lg)',padding:'20px 16px',textAlign:'left',cursor:'pointer',backdropFilter:opt.primary?'none':'blur(8px)',transition:'all 0.2s'}} onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(0,0,0,0.25)';}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none';}}>
+            <span style={{fontSize:24,display:'block',marginBottom:10}}>{opt.emoji}</span>
+            <div style={{fontFamily:"'Nunito',sans-serif",fontSize:15,fontWeight:800,color:opt.primary?'var(--forest)':'#fff',marginBottom:5,lineHeight:1.3}}>{opt.label}</div>
+            <div style={{fontSize:12,color:opt.primary?'var(--ink-3)':'rgba(255,255,255,0.5)',lineHeight:1.4}}>{opt.sub}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+    <svg viewBox="0 0 1440 70" style={{display:'block',width:'100%',marginTop:'auto',flexShrink:0}} preserveAspectRatio="none"><path d="M0 70 C480 20 960 20 1440 70 L1440 70 L0 70 Z" fill="#F8F7F3"/></svg>
+  </div>);
+}
+
+/* ── InputPage ────────────────────────────────── */
+function InputPage({path,income,setIncome,ess,setEss,life,setLife,onResults,onBack,onSignOut}){
   const isCurrent=path==='current';
-  const [preset,setPreset]=useState(null);
+  const[preset,setPreset]=useState(null);
   const onEss=(cat,f,v)=>setEss(p=>({...p,[cat]:{...p[cat],[f]:v}}));
   const onLife=(cat,f,v)=>setLife(p=>({...p,[cat]:{...p[cat],[f]:v}}));
   const applyPreset=id=>{setPreset(id);setEss(deepClone(PRESETS[id].ess));setLife(deepClone(PRESETS[id].life));};
-  const t=calcTotals(ess,life);
-  const canGo=t.total>0;
-
-  return(
-    <div style={{minHeight:'100vh',background:'var(--bg)',paddingBottom:88}}>
-      <AppHeader onBack={onBack} backLabel="Back"
-        rightContent={t.total>0?<span style={{fontSize:13,fontWeight:700,color:'var(--mid)'}}>{fmt(t.total)}</span>:null}
-      />
-      <main style={{maxWidth:640,margin:'0 auto',padding:'24px 16px 16px'}}>
-        <div className="fu" style={{marginBottom:24}}>
-          <span style={{display:'inline-flex',alignItems:'center',gap:6,background:'var(--green-light)',color:'var(--mid)',fontSize:12,fontWeight:700,padding:'5px 12px',borderRadius:20,marginBottom:12}}>
-            {isCurrent?'📍 Current life':'✦ Desired life'}
-          </span>
-          <h1 style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(1.65rem,5vw,2.2rem)',fontWeight:900,color:'var(--ink)',lineHeight:1.15,marginBottom:8}}>
-            {isCurrent?"Let's see what your life actually costs.":'Now let\'s build the life you actually want.'}
-          </h1>
-          <p style={{fontSize:15,color:'var(--ink-3)',lineHeight:1.7,fontWeight:400}}>
-            {isCurrent?'Fill in what you actually spend — rent, food, transport, all of it. Be honest. This is just between you and the numbers.':'Pick a lifestyle mode to get started, or fill everything in yourself. We\'ll show you the exact income it takes.'}
-          </p>
+  const t=calcTotals(ess,life);const canGo=t.total>0;
+  return(<div style={{minHeight:'100vh',background:'var(--bg)',paddingBottom:88}}>
+    <AppHeader onBack={onBack} backLabel="Back" rightContent={t.total>0?<span style={{fontSize:13,fontWeight:700,color:'var(--mid)'}}>{fmt(t.total)}</span>:null} onSignOut={onSignOut}/>
+    <main style={{maxWidth:640,margin:'0 auto',padding:'24px 16px 16px'}}>
+      <div className="fu" style={{marginBottom:24}}>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6,background:'var(--green-light)',color:'var(--mid)',fontSize:12,fontWeight:700,padding:'5px 12px',borderRadius:20,marginBottom:12}}>{isCurrent?'📍 Current life':'✦ Desired life'}</span>
+        <h1 style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(1.65rem,5vw,2.2rem)',fontWeight:900,color:'var(--ink)',lineHeight:1.15,marginBottom:8}}>{isCurrent?"Let's see what your life actually costs.":'Now let\'s build the life you actually want.'}</h1>
+        <p style={{fontSize:15,color:'var(--ink-3)',lineHeight:1.7}}>{isCurrent?'Fill in what you actually spend — rent, food, transport, all of it. Be honest. This is just between you and the numbers.':'Pick a lifestyle mode to get started, or fill everything in yourself. We\'ll show you the exact income it takes.'}</p>
+      </div>
+      {!isCurrent&&(<div className="fu d1" style={{marginBottom:24}}>
+        <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Pick a lifestyle mode</p>
+        <div style={{display:'flex',gap:10,overflowX:'auto',paddingBottom:4,scrollbarWidth:'none',WebkitOverflowScrolling:'touch'}}>{Object.entries(PRESETS).map(([id,p])=><PresetCard key={id} id={id} p={p} selected={preset} onSelect={applyPreset}/>)}</div>
+        {preset&&<p style={{fontSize:12,color:'var(--ink-4)',marginTop:8}}>Numbers pre-filled. Adjust anything below.</p>}
+      </div>)}
+      <div className="fu d2" style={{background:'var(--white)',borderRadius:'var(--rad)',border:'1px solid var(--border)',padding:'18px 20px',marginBottom:20,boxShadow:'var(--shadow-xs)'}}>
+        <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:12}}>{isCurrent?'Your current monthly income':'Income you\'re targeting'}</p>
+        <div style={{display:'flex',alignItems:'center',gap:10,borderBottom:'2px solid var(--border)',paddingBottom:12,marginBottom:8,transition:'border-color 0.2s'}} onFocusCapture={e=>e.currentTarget.style.borderColor='var(--mid)'} onBlurCapture={e=>e.currentTarget.style.borderColor='var(--border)'}>
+          <span style={{fontFamily:"'Nunito',sans-serif",fontSize:'2rem',fontWeight:900,color:'var(--ink-4)',lineHeight:1}}>₦</span>
+          <input type="number" value={income||''} onChange={e=>setIncome(parseFloat(e.target.value)||0)} placeholder="0" inputMode="numeric" style={{fontFamily:"'Nunito',sans-serif",fontSize:'2rem',fontWeight:900,color:'var(--ink)',background:'transparent',border:'none',outline:'none',width:'100%',lineHeight:1}}/>
         </div>
-
-        {!isCurrent&&(
-          <div className="fu d1" style={{marginBottom:24}}>
-            <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Pick a lifestyle mode</p>
-            <div style={{display:'flex',gap:10,overflowX:'auto',paddingBottom:4,scrollbarWidth:'none',WebkitOverflowScrolling:'touch'}}>
-              {Object.entries(PRESETS).map(([id,p])=><PresetCard key={id} id={id} p={p} selected={preset} onSelect={applyPreset}/>)}
-            </div>
-            {preset&&<p style={{fontSize:12,color:'var(--ink-4)',marginTop:8}}>Numbers pre-filled. Adjust anything below.</p>}
-          </div>
-        )}
-
-        {/* Income */}
-        <div className="fu d2" style={{background:'var(--white)',borderRadius:'var(--rad)',border:'1px solid var(--border)',padding:'18px 20px',marginBottom:20,boxShadow:'var(--shadow-xs)'}}>
-          <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:12}}>{isCurrent?'Your current monthly income':'Income you\'re targeting'}</p>
-          <div style={{display:'flex',alignItems:'center',gap:10,borderBottom:'2px solid var(--border)',paddingBottom:12,marginBottom:8,transition:'border-color 0.2s'}}
-            onFocusCapture={e=>e.currentTarget.style.borderColor='var(--mid)'}
-            onBlurCapture={e=>e.currentTarget.style.borderColor='var(--border)'}
-          >
-            <span style={{fontFamily:"'Nunito',sans-serif",fontSize:'2rem',fontWeight:900,color:'var(--ink-4)',lineHeight:1}}>₦</span>
-            <input type="number" value={income||''} onChange={e=>setIncome(parseFloat(e.target.value)||0)} placeholder="0" inputMode="numeric"
-              style={{fontFamily:"'Nunito',sans-serif",fontSize:'2rem',fontWeight:900,color:'var(--ink)',background:'transparent',border:'none',outline:'none',width:'100%',lineHeight:1}}/>
-          </div>
-          <p style={{fontSize:12,color:'var(--ink-4)'}}>{isCurrent?'Take-home after tax. Freelancer? Use your monthly average.':'Used to show how far you are from this lifestyle.'}</p>
-        </div>
-
-        {/* Essential */}
-        <div className="fu d3">
-          <div style={{display:'flex',alignItems:'center',gap:10,margin:'4px 0 14px'}}>
-            <span style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Essential costs</span>
-            <div style={{flex:1,height:1,background:'var(--border)'}}/>
-            {t.essTotal>0&&<span style={{fontSize:13,fontWeight:700,color:'var(--mid)'}}>{fmt(t.essTotal)}</span>}
-          </div>
-          <SectionBlock emoji="🏠" title="Housing" isEssential total={t.housing}>
-            <ExpenseField label="Annual rent" value={ess.housing.annualRent} onChange={v=>onEss('housing','annualRent',v)} annual/>
-            <ExpenseField label="Utilities — water & PHCN" value={ess.housing.utilities} onChange={v=>onEss('housing','utilities',v)}/>
-            <ExpenseField label="Generator fuel" value={ess.housing.generatorFuel} onChange={v=>onEss('housing','generatorFuel',v)}/>
-            <ExpenseField label="Estate / security dues" value={ess.housing.estateDues} onChange={v=>onEss('housing','estateDues',v)} last/>
-          </SectionBlock>
-          <SectionBlock emoji="🍽️" title="Food" isEssential total={t.food}>
-            <ExpenseField label="Groceries & market" value={ess.food.groceries} onChange={v=>onEss('food','groceries',v)}/>
-            <ExpenseField label="Eating out & food delivery" value={ess.food.eatingOut} onChange={v=>onEss('food','eatingOut',v)} last/>
-          </SectionBlock>
-          <SectionBlock emoji="🚗" title="Transport" isEssential total={t.transport}>
-            <ExpenseField label="Fuel (personal car)" value={ess.transport.fuel} onChange={v=>onEss('transport','fuel',v)}/>
-            <ExpenseField label="Public transport (bus, keke)" value={ess.transport.publicTransport} onChange={v=>onEss('transport','publicTransport',v)}/>
-            <ExpenseField label="Ride-hailing (Uber, Bolt)" value={ess.transport.rideHailing} onChange={v=>onEss('transport','rideHailing',v)} last/>
-          </SectionBlock>
-          <SectionBlock emoji="📱" title="Technology" isEssential total={t.tech}>
-            <ExpenseField label="Mobile data / internet" value={ess.technology.dataInternet} onChange={v=>onEss('technology','dataInternet',v)}/>
-            <ExpenseField label="Airtime & phone bills" value={ess.technology.phoneBills} onChange={v=>onEss('technology','phoneBills',v)} last/>
-          </SectionBlock>
-          <SectionBlock emoji="💊" title="Health" isEssential total={t.health}>
-            <ExpenseField label="Health insurance / HMO" value={ess.health.insurance} onChange={v=>onEss('health','insurance',v)} annual/>
-            <ExpenseField label="Pharmacy & out-of-pocket" value={ess.health.pharmacy} onChange={v=>onEss('health','pharmacy',v)} last/>
-          </SectionBlock>
-        </div>
-
-        {/* Lifestyle */}
-        <div className="fu d4">
-          <div style={{display:'flex',alignItems:'center',gap:10,margin:'16px 0 14px'}}>
-            <span style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Lifestyle costs</span>
-            <div style={{flex:1,height:1,background:'var(--border)'}}/>
-            {t.lifeTotal>0&&<span style={{fontSize:13,fontWeight:700,color:'var(--amber)'}}>{fmt(t.lifeTotal)}</span>}
-          </div>
-          <SectionBlock emoji="👗" title="Personal" total={t.personal}>
-            <ExpenseField label="Clothing & shoes" value={life.personal.clothing} onChange={v=>onLife('personal','clothing',v)}/>
-            <ExpenseField label="Grooming & self-care" value={life.personal.grooming} onChange={v=>onLife('personal','grooming',v)} last/>
-          </SectionBlock>
-          <SectionBlock emoji="🎭" title="Entertainment" total={t.ent}>
-            <ExpenseField label="Outings & events" value={life.entertainment.outings} onChange={v=>onLife('entertainment','outings',v)}/>
-            <ExpenseField label="Subscriptions (Netflix, Spotify…)" value={life.entertainment.subscriptions} onChange={v=>onLife('entertainment','subscriptions',v)}/>
-            <ExpenseField label="Gym / fitness" value={life.entertainment.gym} onChange={v=>onLife('entertainment','gym',v)} last/>
-          </SectionBlock>
-          <SectionBlock emoji="👨‍👩‍👧" title="Family & Obligations" total={t.family}>
-            <ExpenseField label="Family support (black tax)" value={life.familyObligations.familySupport} onChange={v=>onLife('familyObligations','familySupport',v)}/>
-            <ExpenseField label="Domestic help" value={life.familyObligations.domesticHelp} onChange={v=>onLife('familyObligations','domesticHelp',v)}/>
-            <ExpenseField label="Savings / investments" value={life.familyObligations.savings} onChange={v=>onLife('familyObligations','savings',v)}/>
-            <ExpenseField label="Other expenses" value={life.familyObligations.customAmount} onChange={v=>onLife('familyObligations','customAmount',v)} last/>
-          </SectionBlock>
-        </div>
-      </main>
-
-      {/* Sticky CTA */}
-      <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'12px 16px',background:'rgba(248,247,243,0.97)',borderTop:'1px solid var(--border)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',zIndex:50}}>
-        <div style={{maxWidth:640,margin:'0 auto',display:'flex',gap:12,alignItems:'center'}}>
-          <div style={{flex:1,minWidth:0}}>
-            {canGo?<p style={{fontSize:14,color:'var(--ink-2)',lineHeight:1.3}}><span style={{fontFamily:"'Nunito',sans-serif",fontWeight:800,color:'var(--mid)',fontSize:16}}>{fmt(t.total)}</span><span style={{color:'var(--ink-4)'}}>/mo · {fmt(t.total*12)}/yr</span></p>
-            :<p style={{fontSize:13,color:'var(--ink-4)'}}>Add your expenses above</p>}
-          </div>
-          <button onClick={onResults} disabled={!canGo} style={{
-            background:canGo?'var(--forest)':'var(--bg-2)',color:canGo?'#fff':'var(--ink-4)',
-            border:'none',borderRadius:'var(--rad-xs)',padding:'14px 22px',
-            fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:15,
-            cursor:canGo?'pointer':'not-allowed',flexShrink:0,letterSpacing:'-0.01em',
-            boxShadow:canGo?'0 2px 10px rgba(15,61,40,0.35)':'none',transition:'all 0.2s',
-          }}>See my number →</button>
-        </div>
+        <p style={{fontSize:12,color:'var(--ink-4)'}}>{isCurrent?'Take-home after tax. Freelancer? Use your monthly average.':'Used to show how far you are from this lifestyle.'}</p>
+      </div>
+      <div className="fu d3">
+        <div style={{display:'flex',alignItems:'center',gap:10,margin:'4px 0 14px'}}><span style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Essential costs</span><div style={{flex:1,height:1,background:'var(--border)'}}/>{t.essTotal>0&&<span style={{fontSize:13,fontWeight:700,color:'var(--mid)'}}>{fmt(t.essTotal)}</span>}</div>
+        <SectionBlock emoji="🏠" title="Housing" isEssential total={t.housing}><ExpenseField label="Annual rent" value={ess.housing.annualRent} onChange={v=>onEss('housing','annualRent',v)} annual/><ExpenseField label="Utilities — water & PHCN" value={ess.housing.utilities} onChange={v=>onEss('housing','utilities',v)}/><ExpenseField label="Generator fuel" value={ess.housing.generatorFuel} onChange={v=>onEss('housing','generatorFuel',v)}/><ExpenseField label="Estate / security dues" value={ess.housing.estateDues} onChange={v=>onEss('housing','estateDues',v)} last/></SectionBlock>
+        <SectionBlock emoji="🍽️" title="Food" isEssential total={t.food}><ExpenseField label="Groceries & market" value={ess.food.groceries} onChange={v=>onEss('food','groceries',v)}/><ExpenseField label="Eating out & food delivery" value={ess.food.eatingOut} onChange={v=>onEss('food','eatingOut',v)} last/></SectionBlock>
+        <SectionBlock emoji="🚗" title="Transport" isEssential total={t.transport}><ExpenseField label="Fuel (personal car)" value={ess.transport.fuel} onChange={v=>onEss('transport','fuel',v)}/><ExpenseField label="Public transport (bus, keke)" value={ess.transport.publicTransport} onChange={v=>onEss('transport','publicTransport',v)}/><ExpenseField label="Ride-hailing (Uber, Bolt)" value={ess.transport.rideHailing} onChange={v=>onEss('transport','rideHailing',v)} last/></SectionBlock>
+        <SectionBlock emoji="📱" title="Technology" isEssential total={t.tech}><ExpenseField label="Mobile data / internet" value={ess.technology.dataInternet} onChange={v=>onEss('technology','dataInternet',v)}/><ExpenseField label="Airtime & phone bills" value={ess.technology.phoneBills} onChange={v=>onEss('technology','phoneBills',v)} last/></SectionBlock>
+        <SectionBlock emoji="💊" title="Health" isEssential total={t.health}><ExpenseField label="Health insurance / HMO" value={ess.health.insurance} onChange={v=>onEss('health','insurance',v)} annual/><ExpenseField label="Pharmacy & out-of-pocket" value={ess.health.pharmacy} onChange={v=>onEss('health','pharmacy',v)} last/></SectionBlock>
+      </div>
+      <div className="fu d4">
+        <div style={{display:'flex',alignItems:'center',gap:10,margin:'16px 0 14px'}}><span style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Lifestyle costs</span><div style={{flex:1,height:1,background:'var(--border)'}}/>{t.lifeTotal>0&&<span style={{fontSize:13,fontWeight:700,color:'var(--amber)'}}>{fmt(t.lifeTotal)}</span>}</div>
+        <SectionBlock emoji="👗" title="Personal" total={t.personal}><ExpenseField label="Clothing & shoes" value={life.personal.clothing} onChange={v=>onLife('personal','clothing',v)}/><ExpenseField label="Grooming & self-care" value={life.personal.grooming} onChange={v=>onLife('personal','grooming',v)} last/></SectionBlock>
+        <SectionBlock emoji="🎭" title="Entertainment" total={t.ent}><ExpenseField label="Outings & events" value={life.entertainment.outings} onChange={v=>onLife('entertainment','outings',v)}/><ExpenseField label="Subscriptions (Netflix, Spotify…)" value={life.entertainment.subscriptions} onChange={v=>onLife('entertainment','subscriptions',v)}/><ExpenseField label="Gym / fitness" value={life.entertainment.gym} onChange={v=>onLife('entertainment','gym',v)} last/></SectionBlock>
+        <SectionBlock emoji="👨‍👩‍👧" title="Family & Obligations" total={t.family}><ExpenseField label="Family support (black tax)" value={life.familyObligations.familySupport} onChange={v=>onLife('familyObligations','familySupport',v)}/><ExpenseField label="Domestic help" value={life.familyObligations.domesticHelp} onChange={v=>onLife('familyObligations','domesticHelp',v)}/><ExpenseField label="Savings / investments" value={life.familyObligations.savings} onChange={v=>onLife('familyObligations','savings',v)}/><ExpenseField label="Other expenses" value={life.familyObligations.customAmount} onChange={v=>onLife('familyObligations','customAmount',v)} last/></SectionBlock>
+      </div>
+    </main>
+    <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'12px 16px',background:'rgba(248,247,243,0.97)',borderTop:'1px solid var(--border)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',zIndex:50}}>
+      <div style={{maxWidth:640,margin:'0 auto',display:'flex',gap:12,alignItems:'center'}}>
+        <div style={{flex:1,minWidth:0}}>{canGo?<p style={{fontSize:14,color:'var(--ink-2)',lineHeight:1.3}}><span style={{fontFamily:"'Nunito',sans-serif",fontWeight:800,color:'var(--mid)',fontSize:16}}>{fmt(t.total)}</span><span style={{color:'var(--ink-4)'}}>/mo · {fmt(t.total*12)}/yr</span></p>:<p style={{fontSize:13,color:'var(--ink-4)'}}>Add your expenses above</p>}</div>
+        <button onClick={onResults} disabled={!canGo} style={{background:canGo?'var(--forest)':'var(--bg-2)',color:canGo?'#fff':'var(--ink-4)',border:'none',borderRadius:'var(--rad-xs)',padding:'14px 22px',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:15,cursor:canGo?'pointer':'not-allowed',flexShrink:0,boxShadow:canGo?'0 2px 10px rgba(15,61,40,0.35)':'none',transition:'all 0.2s'}}>See my number →</button>
       </div>
     </div>
-  );
+  </div>);
 }
 
-/* ── ResultsPage ─────────────────────────────── */
-function ResultsPage({path,income,ess,life,onBack,onDesiredLife,onCompare,hasComparison}){
-  const t=calcTotals(ess,life);
-  const isCurrent=path==='current';
-  const gap=income-t.total;
-  const coverPct=Math.min(100,pct(income,t.total));
+/* ── ResultsPage ──────────────────────────────── */
+function ResultsPage({path,income,ess,life,onBack,onDesiredLife,onCompare,hasComparison,onSignOut}){
+  const t=calcTotals(ess,life);const isCurrent=path==='current';
+  const gap=income-t.total;const coverPct=Math.min(100,pct(income,t.total));
   const gapColor=gap>=0?'var(--mid)':coverPct>=70?'var(--amber)':'var(--red)';
   const safety=t.total*0.25;
-
   const insights=useMemo(()=>{
-    const r=[];
-    if(!t.total)return r;
-    r.push({type:'info',msg:`Your life costs ₦${Math.round(t.total/30).toLocaleString('en-NG')} every single day. That's your daily floor.`});
+    const r=[];if(!t.total)return r;
+    r.push({type:'info',msg:`Your life costs ₦${Math.round(t.total/30).toLocaleString('en-NG')} every single day. That's your floor.`});
     const ep=pct(t.essTotal,t.total);
-    if(ep>80)r.push({type:'warning',msg:`${ep}% of your spending is locked into essentials. That's a tight ratio — consider where you can breathe.`});
+    if(ep>80)r.push({type:'warning',msg:`${ep}% of your spending is locked into essentials. Consider where you can create more flexibility.`});
     else if(ep>=55)r.push({type:'success',msg:`${ep}% on essentials, ${100-ep}% on lifestyle. A healthy balance.`});
     else r.push({type:'warning',msg:`Lifestyle spend (${100-ep}%) is outrunning essentials (${ep}%). Make sure income keeps up.`});
     const sav=life.familyObligations.savings;
     if(!sav)r.push({type:'warning',msg:`No savings in your plan. Add at least ${fmt(Math.round(t.total*0.1))}/mo — pay yourself first.`});
     else{const sp=pct(sav,t.total);r.push({type:sp>=10?'success':'warning',msg:`Saving ${fmt(sav)}/mo (${sp}%). ${sp>=10?'Solid discipline.':'Aim for 10–20%.'}`});}
-    if(income>0){
-      if(gap>=0)r.push({type:'success',msg:`You earn ${fmt(gap)} more than your lifestyle costs. Put that gap to work.`});
-      else r.push({type:'warning',msg:`You're short by ${fmt(Math.abs(gap))}/month. That gap is quietly compounding.`});
-    }
+    if(income>0){if(gap>=0)r.push({type:'success',msg:`You earn ${fmt(gap)} more than your lifestyle costs. Put that gap to work.`});else r.push({type:'warning',msg:`You're short by ${fmt(Math.abs(gap))}/month. That gap is quietly compounding.`});}
     return r;
   },[t,income,life]);
 
-  return(
-    <div style={{minHeight:'100vh',background:'var(--bg)',paddingBottom:isCurrent?100:40}}>
-      <AppHeader onBack={onBack} backLabel="Adjust"/>
-
-      <main style={{maxWidth:640,margin:'0 auto',padding:'24px 16px 16px'}}>
-        {/* Hero */}
-        <div className="fu" style={{background:'var(--forest)',borderRadius:'var(--rad-xl)',padding:'28px 24px',marginBottom:14,position:'relative',overflow:'hidden'}}>
-          <div style={{position:'absolute',top:-50,right:-50,width:180,height:180,borderRadius:'50%',background:'rgba(93,193,48,0.07)',pointerEvents:'none'}}/>
-          <div style={{position:'absolute',bottom:-30,left:-30,width:140,height:140,borderRadius:'50%',background:'rgba(255,255,255,0.02)',pointerEvents:'none'}}/>
-          <p style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>
-            {isCurrent?'Your current life costs':'Your desired life costs'}
-          </p>
-          <div style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(2.4rem,7vw,3.8rem)',fontWeight:900,color:'#fff',lineHeight:1,marginBottom:6}}>{fmt(t.total)}</div>
-          <p style={{fontSize:14,color:'rgba(255,255,255,0.45)',marginBottom:income>0?14:0}}>per month · {fmt(t.total*12)} per year</p>
-          {income>0&&(
-            <div style={{display:'inline-flex',alignItems:'center',gap:8,background:gap>=0?'rgba(93,193,48,0.15)':'rgba(232,85,85,0.15)',borderRadius:20,padding:'6px 14px',border:`1px solid ${gap>=0?'rgba(93,193,48,0.25)':'rgba(232,85,85,0.2)'}`}}>
-              <div style={{width:7,height:7,borderRadius:'50%',background:gapColor}}/>
-              <span style={{fontSize:13,fontWeight:700,color:gap>=0?'#5DC130':'#EF8080'}}>
-                {gap>=0?`+${fmt(gap)} surplus vs income`:`${fmt(Math.abs(gap))} short of income`}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Stats */}
-        <div className="fu d1" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-          {[
-            {l:'Survival minimum',v:fmt(t.essTotal),s:'Essentials only'},
-            {l:'Full lifestyle',v:fmt(t.total),s:'Everything included'},
-            {l:'Income gap',v:(gap>=0?'+':'')+fmt(gap),s:gap>=0?'You have headroom':'Gap to close',a:gapColor},
-            {l:'Safe target (+25%)',v:fmt(t.total+safety),s:'Recommended income'},
-          ].map((s,i)=>(
-            <div key={i} className={`fu d${i+2}`} style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'16px',boxShadow:'var(--shadow-xs)'}}>
-              <p style={{fontSize:11,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{s.l}</p>
-              <p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.35rem',fontWeight:900,color:s.a||'var(--ink)',lineHeight:1,marginBottom:4}}>{s.v}</p>
-              <p style={{fontSize:11,color:'var(--ink-4)'}}>{s.s}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Coverage bar */}
-        {income>0&&(
-          <div className="fu d3" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'18px',marginBottom:14,boxShadow:'var(--shadow-xs)'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:10}}>
-              <span style={{fontSize:14,fontWeight:600,color:'var(--ink)'}}>Income coverage</span>
-              <span style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.5rem',fontWeight:900,color:gapColor}}>{coverPct}%</span>
-            </div>
-            <div style={{height:10,background:'var(--bg-2)',borderRadius:5,overflow:'hidden',marginBottom:8}}>
-              <div style={{height:'100%',width:`${coverPct}%`,background:gapColor,borderRadius:5,transition:'width 1.2s cubic-bezier(0.4,0,0.2,1)'}}/>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between'}}>
-              <span style={{fontSize:11,color:'var(--ink-4)'}}>₦0</span>
-              <span style={{fontSize:11,color:'var(--ink-4)'}}>{fmt(t.total)}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Donut + legend */}
-        <div className="fu d4" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'20px',marginBottom:14,boxShadow:'var(--shadow-xs)'}}>
-          <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:16}}>Where your money goes</p>
-          <div style={{display:'flex',gap:20,alignItems:'center',flexWrap:'wrap',justifyContent:'center'}}>
-            <DonutChart cats={t.cats} total={t.total} size={190}/>
-            <div style={{flex:1,minWidth:150,display:'flex',flexDirection:'column',gap:7}}>
-              {t.cats.filter(d=>d.amount>0).map((d,i)=>(
-                <div key={d.category} style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{width:10,height:10,borderRadius:3,background:CAT_COLORS[d.category]||CHART_COLORS[i%8],flexShrink:0}}/>
-                  <span style={{fontSize:13,color:'var(--ink-2)',flex:1,lineHeight:1.2}}>{d.category}</span>
-                  <span style={{fontSize:12,fontWeight:700,color:'var(--ink)',flexShrink:0}}>{d.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Essential vs Lifestyle */}
-        <div className="fu d5" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-          <div style={{background:'var(--green-light)',border:'1px solid rgba(26,107,71,0.15)',borderRadius:'var(--rad)',padding:'16px'}}>
-            <p style={{fontSize:10,fontWeight:700,color:'var(--mid)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Essential</p>
-            <p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:'var(--forest)'}}>{fmt(t.essTotal)}</p>
-            <p style={{fontSize:11,color:'var(--mid)',marginTop:3}}>{pct(t.essTotal,t.total)}% of total</p>
-          </div>
-          <div style={{background:'var(--amber-soft)',border:'1px solid rgba(168,92,0,0.12)',borderRadius:'var(--rad)',padding:'16px'}}>
-            <p style={{fontSize:10,fontWeight:700,color:'var(--amber)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Lifestyle</p>
-            <p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:'#78350F'}}>{fmt(t.lifeTotal)}</p>
-            <p style={{fontSize:11,color:'var(--amber)',marginTop:3}}>{pct(t.lifeTotal,t.total)}% of total</p>
-          </div>
-        </div>
-
-        {/* Insights */}
-        {insights.length>0&&(
-          <div className="fu d6" style={{marginBottom:20}}>
-            <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>What this means</p>
-            {insights.map((ins,i)=>{
-              const cfg={success:{bg:'var(--green-light)',border:'var(--mid)',dot:'var(--mid)'},warning:{bg:'var(--amber-soft)',border:'var(--amber)',dot:'var(--amber)'},info:{bg:'rgba(13,110,114,0.07)',border:'var(--teal)',dot:'var(--teal)'}}[ins.type];
-              return<div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'13px 15px',background:cfg.bg,borderRadius:'var(--rad-xs)',borderLeft:`3px solid ${cfg.border}`,marginBottom:8}}>
-                <div style={{width:7,height:7,borderRadius:'50%',background:cfg.dot,flexShrink:0,marginTop:5}}/>
-                <p style={{fontSize:14,color:'var(--ink-2)',lineHeight:1.6}}>{ins.msg}</p>
-              </div>;
-            })}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="fu d7" style={{display:'flex',gap:10}}>
-          <button onClick={onBack} style={{flex:1,padding:'13px',background:'var(--white)',color:'var(--ink-2)',border:'1px solid var(--border)',borderRadius:'var(--rad-xs)',fontFamily:'inherit',fontWeight:600,fontSize:14,cursor:'pointer'}}>← Adjust</button>
-          <button onClick={()=>window.print()} style={{flex:1,padding:'13px',background:'var(--bg-2)',color:'var(--ink-2)',border:'1px solid var(--border)',borderRadius:'var(--rad-xs)',fontFamily:'inherit',fontWeight:600,fontSize:14,cursor:'pointer'}}>Save PDF</button>
-        </div>
-      </main>
-
-      {/* Bridge CTA */}
-      {isCurrent&&(
-        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'12px 16px 16px',background:'rgba(248,247,243,0.97)',borderTop:'1px solid var(--border)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',zIndex:50}}>
-          <div style={{maxWidth:640,margin:'0 auto'}}>
-            {hasComparison?(
-              <button onClick={onCompare} style={{width:'100%',padding:'15px',background:'var(--forest)',color:'#fff',border:'none',borderRadius:'var(--rad-xs)',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:15,cursor:'pointer',boxShadow:'0 2px 10px rgba(15,61,40,0.35)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                <span>⇄</span> Compare current vs desired life
-              </button>
-            ):(
-              <div>
-                <p style={{fontSize:13,color:'var(--ink-3)',marginBottom:10,textAlign:'center'}}>
-                  <strong style={{color:'var(--ink)'}}>Now you know your reality.</strong> Want to see what a better life would cost?
-                </p>
-                <button onClick={onDesiredLife} style={{width:'100%',padding:'15px',background:'var(--forest)',color:'#fff',border:'none',borderRadius:'var(--rad-xs)',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:15,cursor:'pointer',boxShadow:'0 2px 10px rgba(15,61,40,0.35)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                  Design my desired life <span style={{fontSize:18}}>→</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return(<div style={{minHeight:'100vh',background:'var(--bg)',paddingBottom:isCurrent?100:40}}>
+    <AppHeader onBack={onBack} backLabel="Adjust" onSignOut={onSignOut}/>
+    <main style={{maxWidth:640,margin:'0 auto',padding:'24px 16px 16px'}}>
+      <div className="fu" style={{background:'var(--forest)',borderRadius:'var(--rad-xl)',padding:'28px 24px',marginBottom:14,position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-50,right:-50,width:180,height:180,borderRadius:'50%',background:'rgba(93,193,48,0.07)',pointerEvents:'none'}}/>
+        <p style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>{isCurrent?'Your current life costs':'Your desired life costs'}</p>
+        <div style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(2.4rem,7vw,3.8rem)',fontWeight:900,color:'#fff',lineHeight:1,marginBottom:6}}>{fmt(t.total)}</div>
+        <p style={{fontSize:14,color:'rgba(255,255,255,0.45)',marginBottom:income>0?14:0}}>per month · {fmt(t.total*12)} per year</p>
+        {income>0&&(<div style={{display:'inline-flex',alignItems:'center',gap:8,background:gap>=0?'rgba(93,193,48,0.15)':'rgba(232,85,85,0.15)',borderRadius:20,padding:'6px 14px',border:`1px solid ${gap>=0?'rgba(93,193,48,0.25)':'rgba(232,85,85,0.2)'}`}}><div style={{width:7,height:7,borderRadius:'50%',background:gapColor}}/><span style={{fontSize:13,fontWeight:700,color:gap>=0?'#5DC130':'#EF8080'}}>{gap>=0?`+${fmt(gap)} surplus vs income`:`${fmt(Math.abs(gap))} short of income`}</span></div>)}
+      </div>
+      <div className="fu d1" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+        {[{l:'Survival minimum',v:fmt(t.essTotal),s:'Essentials only'},{l:'Full lifestyle',v:fmt(t.total),s:'Everything included'},{l:'Income gap',v:(gap>=0?'+':'')+fmt(gap),s:gap>=0?'You have headroom':'Gap to close',a:gapColor},{l:'Safe target (+25%)',v:fmt(t.total+safety),s:'Recommended income'}].map((s,i)=>(
+          <div key={i} className={`fu d${i+2}`} style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'16px',boxShadow:'var(--shadow-xs)'}}><p style={{fontSize:11,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{s.l}</p><p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.35rem',fontWeight:900,color:s.a||'var(--ink)',lineHeight:1,marginBottom:4}}>{s.v}</p><p style={{fontSize:11,color:'var(--ink-4)'}}>{s.s}</p></div>
+        ))}
+      </div>
+      {income>0&&(<div className="fu d3" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'18px',marginBottom:14,boxShadow:'var(--shadow-xs)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:10}}><span style={{fontSize:14,fontWeight:600,color:'var(--ink)'}}>Income coverage</span><span style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.5rem',fontWeight:900,color:gapColor}}>{coverPct}%</span></div><div style={{height:10,background:'var(--bg-2)',borderRadius:5,overflow:'hidden',marginBottom:8}}><div style={{height:'100%',width:`${coverPct}%`,background:gapColor,borderRadius:5,transition:'width 1.2s cubic-bezier(0.4,0,0.2,1)'}}/></div><div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:11,color:'var(--ink-4)'}}>₦0</span><span style={{fontSize:11,color:'var(--ink-4)'}}>{fmt(t.total)}</span></div></div>)}
+      <div className="fu d4" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'20px',marginBottom:14,boxShadow:'var(--shadow-xs)'}}><p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:16}}>Where your money goes</p><div style={{display:'flex',gap:20,alignItems:'center',flexWrap:'wrap',justifyContent:'center'}}><DonutChart cats={t.cats} total={t.total} size={190}/><div style={{flex:1,minWidth:150,display:'flex',flexDirection:'column',gap:7}}>{t.cats.filter(d=>d.amount>0).map((d,i)=>(<div key={d.category} style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:10,height:10,borderRadius:3,background:CAT_COLORS[d.category]||CHART_COLORS[i%8],flexShrink:0}}/><span style={{fontSize:13,color:'var(--ink-2)',flex:1,lineHeight:1.2}}>{d.category}</span><span style={{fontSize:12,fontWeight:700,color:'var(--ink)',flexShrink:0}}>{d.pct}%</span></div>))}</div></div></div>
+      <div className="fu d5" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+        <div style={{background:'var(--green-light)',border:'1px solid rgba(26,107,71,0.15)',borderRadius:'var(--rad)',padding:'16px'}}><p style={{fontSize:10,fontWeight:700,color:'var(--mid)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Essential</p><p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:'var(--forest)'}}>{fmt(t.essTotal)}</p><p style={{fontSize:11,color:'var(--mid)',marginTop:3}}>{pct(t.essTotal,t.total)}% of total</p></div>
+        <div style={{background:'var(--amber-soft)',border:'1px solid rgba(168,92,0,0.12)',borderRadius:'var(--rad)',padding:'16px'}}><p style={{fontSize:10,fontWeight:700,color:'var(--amber)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Lifestyle</p><p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:'#78350F'}}>{fmt(t.lifeTotal)}</p><p style={{fontSize:11,color:'var(--amber)',marginTop:3}}>{pct(t.lifeTotal,t.total)}% of total</p></div>
+      </div>
+      {insights.length>0&&(<div className="fu d6" style={{marginBottom:20}}><p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>What this means</p>{insights.map((ins,i)=>{const cfg={success:{bg:'var(--green-light)',border:'var(--mid)',dot:'var(--mid)'},warning:{bg:'var(--amber-soft)',border:'var(--amber)',dot:'var(--amber)'},info:{bg:'rgba(13,110,114,0.07)',border:'var(--teal)',dot:'var(--teal)'}}[ins.type];return<div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'13px 15px',background:cfg.bg,borderRadius:'var(--rad-xs)',borderLeft:`3px solid ${cfg.border}`,marginBottom:8}}><div style={{width:7,height:7,borderRadius:'50%',background:cfg.dot,flexShrink:0,marginTop:5}}/><p style={{fontSize:14,color:'var(--ink-2)',lineHeight:1.6}}>{ins.msg}</p></div>;})}</div>)}
+      <div className="fu d7" style={{display:'flex',gap:10}}><button onClick={onBack} style={{flex:1,padding:'13px',background:'var(--white)',color:'var(--ink-2)',border:'1px solid var(--border)',borderRadius:'var(--rad-xs)',fontFamily:'inherit',fontWeight:600,fontSize:14,cursor:'pointer'}}>← Adjust</button><button onClick={()=>window.print()} style={{flex:1,padding:'13px',background:'var(--bg-2)',color:'var(--ink-2)',border:'1px solid var(--border)',borderRadius:'var(--rad-xs)',fontFamily:'inherit',fontWeight:600,fontSize:14,cursor:'pointer'}}>Save PDF</button></div>
+    </main>
+    {isCurrent&&(<div style={{position:'fixed',bottom:0,left:0,right:0,padding:'12px 16px 16px',background:'rgba(248,247,243,0.97)',borderTop:'1px solid var(--border)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',zIndex:50}}><div style={{maxWidth:640,margin:'0 auto'}}>
+      {hasComparison?(<button onClick={onCompare} style={{width:'100%',padding:'15px',background:'var(--forest)',color:'#fff',border:'none',borderRadius:'var(--rad-xs)',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:15,cursor:'pointer',boxShadow:'0 2px 10px rgba(15,61,40,0.35)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span>⇄</span> Compare current vs desired life</button>):(<div><p style={{fontSize:13,color:'var(--ink-3)',marginBottom:10,textAlign:'center'}}><strong style={{color:'var(--ink)'}}>Now you know your reality.</strong> Want to see what a better life would cost?</p><button onClick={onDesiredLife} style={{width:'100%',padding:'15px',background:'var(--forest)',color:'#fff',border:'none',borderRadius:'var(--rad-xs)',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:15,cursor:'pointer',boxShadow:'0 2px 10px rgba(15,61,40,0.35)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>Design my desired life <span style={{fontSize:18}}>→</span></button></div>)}
+    </div></div>)}
+  </div>);
 }
 
 /* ── ComparisonPage ───────────────────────────── */
-function ComparisonPage({currentIncome,desiredIncome,currentEss,currentLife,desiredEss,desiredLife,onBack}){
-  const curr=calcTotals(currentEss,currentLife);
-  const des=calcTotals(desiredEss,desiredLife);
-  const delta=des.total-curr.total;
-  const incomeNeeded=des.total;
-  const incomeGap=incomeNeeded-(currentIncome||curr.total);
+function ComparisonPage({currentIncome,currentEss,currentLife,desiredEss,desiredLife,onBack,onSignOut}){
+  const curr=calcTotals(currentEss,currentLife);const des=calcTotals(desiredEss,desiredLife);
+  const delta=des.total-curr.total;const incomeGap=des.total-(currentIncome||curr.total);
   const allCats=['Housing','Food','Transport','Technology','Health','Personal','Entertainment','Family & Obligations'];
   const currMap=Object.fromEntries(curr.cats.map(c=>[c.category,c.amount]));
   const desMap=Object.fromEntries(des.cats.map(c=>[c.category,c.amount]));
   const maxCatVal=Math.max(...allCats.map(c=>Math.max(currMap[c]||0,desMap[c]||0)),1);
-
-  return(
-    <div style={{minHeight:'100vh',background:'var(--bg)',paddingBottom:40}}>
-      <AppHeader onBack={onBack} backLabel="Back"/>
-
-      <main style={{maxWidth:680,margin:'0 auto',padding:'24px 16px 40px'}}>
-        {/* Title */}
-        <div className="fu" style={{marginBottom:24}}>
-          <span style={{display:'inline-flex',alignItems:'center',gap:6,background:'var(--green-light)',color:'var(--mid)',fontSize:12,fontWeight:700,padding:'5px 12px',borderRadius:20,marginBottom:12}}>⇄ Life Comparison</span>
-          <h1 style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(1.65rem,5vw,2.2rem)',fontWeight:900,color:'var(--ink)',lineHeight:1.15,marginBottom:8}}>
-            Current life vs the life you want.
-          </h1>
-          <p style={{fontSize:15,color:'var(--ink-3)',lineHeight:1.7}}>Here's what it would actually cost to upgrade. No guessing — just numbers.</p>
-        </div>
-
-        {/* Delta hero */}
-        <div className="fu d1" style={{background:'var(--forest)',borderRadius:'var(--rad-xl)',padding:'28px 24px',marginBottom:16,position:'relative',overflow:'hidden'}}>
-          <div style={{position:'absolute',top:-40,right:-40,width:160,height:160,borderRadius:'50%',background:'rgba(93,193,48,0.08)'}}/>
-          <p style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:8}}>To upgrade your life, you need</p>
-          <div style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(2.2rem,7vw,3.5rem)',fontWeight:900,color:'#5DC130',lineHeight:1,marginBottom:6}}>+{fmt(delta)}</div>
-          <p style={{fontSize:15,color:'rgba(255,255,255,0.55)',marginBottom:16}}>more every month · +{fmt(delta*12)} per year</p>
-          {currentIncome>0&&(
-            <div style={{background:'rgba(255,255,255,0.06)',borderRadius:'var(--rad-xs)',padding:'12px 16px',display:'inline-block'}}>
-              <p style={{fontSize:13,color:'rgba(255,255,255,0.5)',marginBottom:4}}>Your current income gap to desired life</p>
-              <p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:incomeGap<=0?'#5DC130':'#EF8080'}}>
-                {incomeGap<=0?`You already earn enough ✓`:`${fmt(incomeGap)} short`}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Two donuts */}
-        <div className="fu d2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-          {[
-            {title:'Current life',t:curr,accent:'var(--mid)'},
-            {title:'Desired life',t:des,accent:'#7B2560'},
-          ].map((s,i)=>(
-            <div key={i} style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'16px',boxShadow:'var(--shadow-xs)',textAlign:'center'}}>
-              <p style={{fontSize:12,fontWeight:700,color:s.accent,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:12}}>{s.title}</p>
-              <div style={{display:'flex',justifyContent:'center',marginBottom:8}}>
-                <DonutChart cats={s.t.cats} total={s.t.total} size={140} label={s.title.split(' ')[0]}/>
-              </div>
-              <p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.05rem',fontWeight:900,color:'var(--ink)'}}>{fmt(s.t.total)}<span style={{fontSize:12,fontWeight:400,color:'var(--ink-4)'}}>/mo</span></p>
-            </div>
-          ))}
-        </div>
-
-        {/* Category comparison */}
-        <div className="fu d3" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'20px',marginBottom:16,boxShadow:'var(--shadow-xs)'}}>
-          <p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:16}}>Category by category</p>
-          <div style={{display:'flex',gap:16,marginBottom:12}}>
-            <div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:10,height:10,borderRadius:3,background:'var(--mid)'}}/><span style={{fontSize:12,color:'var(--ink-3)'}}>Current</span></div>
-            <div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:10,height:10,borderRadius:3,background:'#7B2560'}}/><span style={{fontSize:12,color:'var(--ink-3)'}}>Desired</span></div>
-          </div>
-          {allCats.map(cat=>{
-            const c=currMap[cat]||0,d=desMap[cat]||0;
-            if(c===0&&d===0)return null;
-            const diff=d-c;
-            const cW=Math.round((c/maxCatVal)*100);
-            const dW=Math.round((d/maxCatVal)*100);
-            return(
-              <div key={cat} style={{marginBottom:14}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:5}}>
-                  <span style={{fontSize:13,color:'var(--ink-2)',fontWeight:500}}>{cat}</span>
-                  <span style={{fontSize:12,fontWeight:700,color:diff>0?'#7B2560':diff<0?'var(--mid)':'var(--ink-4)'}}>
-                    {diff>0?'+':diff<0?'':'±'}{fmt(diff)}
-                  </span>
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                  {[{v:c,w:cW,color:'var(--mid)',label:fmt(c)},{v:d,w:dW,color:'#7B2560',label:fmt(d)}].map((b,bi)=>(
-                    <div key={bi} style={{display:'flex',alignItems:'center',gap:8}}>
-                      <div style={{flex:1,height:7,background:'var(--bg-2)',borderRadius:4,overflow:'hidden'}}>
-                        <div style={{height:'100%',width:`${b.w}%`,background:b.color,borderRadius:4,transition:'width 0.8s cubic-bezier(0.4,0,0.2,1)'}}/>
-                      </div>
-                      <span style={{fontSize:11,color:'var(--ink-4)',minWidth:70,textAlign:'right'}}>{b.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Summary table */}
-        <div className="fu d4" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',overflow:'hidden',marginBottom:16,boxShadow:'var(--shadow-xs)'}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',background:'var(--bg-2)',padding:'10px 16px',borderBottom:'1px solid var(--border)'}}>
-            {['',<span style={{color:'var(--mid)',fontWeight:700}}>Current</span>,<span style={{color:'#7B2560',fontWeight:700}}>Desired</span>].map((h,i)=>(
-              <span key={i} style={{fontSize:12,fontWeight:700,color:'var(--ink-3)',textAlign:i>0?'right':'left'}}>{h}</span>
-            ))}
-          </div>
-          {[
-            {l:'Essential',c:fmt(curr.essTotal),d:fmt(des.essTotal)},
-            {l:'Lifestyle',c:fmt(curr.lifeTotal),d:fmt(des.lifeTotal)},
-            {l:'Total / month',c:fmt(curr.total),d:fmt(des.total),bold:true},
-            {l:'Total / year',c:fmt(curr.total*12),d:fmt(des.total*12)},
-            {l:'Difference',c:'—',d:<span style={{color:'#7B2560',fontWeight:700}}>+{fmt(delta)}/mo</span>,bold:true},
-          ].map((r,i)=>(
-            <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'11px 16px',borderBottom:i<4?'1px solid var(--border)':'none',background:r.bold?'var(--green-light)':'var(--white)'}}>
-              <span style={{fontSize:13,color:'var(--ink-2)',fontWeight:r.bold?700:400}}>{r.l}</span>
-              <span style={{fontSize:13,fontWeight:r.bold?700:400,color:'var(--ink)',textAlign:'right'}}>{r.c}</span>
-              <span style={{fontSize:13,fontWeight:r.bold?700:400,color:'var(--ink)',textAlign:'right'}}>{r.d}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Insight card */}
-        <div className="fu d5" style={{background:'var(--lime-soft)',border:'1px solid rgba(93,193,48,0.2)',borderRadius:'var(--rad)',padding:'18px',marginBottom:20}}>
-          <p style={{fontSize:14,color:'var(--forest)',lineHeight:1.7,fontWeight:500}}>
-            {delta<=0
-              ?`Your desired lifestyle actually costs less than your current one. You're already living above your ideal — or your ideal is beautifully minimal.`
-              :incomeGap<=0&&currentIncome>0
-              ?`You already earn enough to live your desired life. The question is — what's stopping you from making the shift?`
-              :`To live your desired life, you need to earn ${fmt(incomeGap)} more per month. That's your number. Now go get it.`
-            }
-          </p>
-        </div>
-
-        <div style={{display:'flex',gap:10}}>
-          <button onClick={onBack} style={{flex:1,padding:'13px',background:'var(--white)',color:'var(--ink-2)',border:'1px solid var(--border)',borderRadius:'var(--rad-xs)',fontFamily:'inherit',fontWeight:600,fontSize:14,cursor:'pointer'}}>← Back</button>
-          <button onClick={()=>window.print()} style={{flex:1,padding:'13px',background:'var(--forest)',color:'#fff',border:'none',borderRadius:'var(--rad-xs)',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:14,cursor:'pointer'}}>Save PDF</button>
-        </div>
-      </main>
-    </div>
-  );
+  return(<div style={{minHeight:'100vh',background:'var(--bg)',paddingBottom:40}}>
+    <AppHeader onBack={onBack} backLabel="Back" onSignOut={onSignOut}/>
+    <main style={{maxWidth:680,margin:'0 auto',padding:'24px 16px 40px'}}>
+      <div className="fu" style={{marginBottom:24}}><span style={{display:'inline-flex',alignItems:'center',gap:6,background:'var(--green-light)',color:'var(--mid)',fontSize:12,fontWeight:700,padding:'5px 12px',borderRadius:20,marginBottom:12}}>⇄ Life Comparison</span><h1 style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(1.65rem,5vw,2.2rem)',fontWeight:900,color:'var(--ink)',lineHeight:1.15,marginBottom:8}}>Current life vs the life you want.</h1><p style={{fontSize:15,color:'var(--ink-3)',lineHeight:1.7}}>Here's what it would actually cost to upgrade. No guessing — just numbers.</p></div>
+      <div className="fu d1" style={{background:'var(--forest)',borderRadius:'var(--rad-xl)',padding:'28px 24px',marginBottom:16,position:'relative',overflow:'hidden'}}><div style={{position:'absolute',top:-40,right:-40,width:160,height:160,borderRadius:'50%',background:'rgba(93,193,48,0.08)'}}/><p style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:8}}>To upgrade your life, you need</p><div style={{fontFamily:"'Nunito',sans-serif",fontSize:'clamp(2.2rem,7vw,3.5rem)',fontWeight:900,color:'#5DC130',lineHeight:1,marginBottom:6}}>+{fmt(delta)}</div><p style={{fontSize:15,color:'rgba(255,255,255,0.55)',marginBottom:16}}>more every month · +{fmt(delta*12)} per year</p>{currentIncome>0&&(<div style={{background:'rgba(255,255,255,0.06)',borderRadius:'var(--rad-xs)',padding:'12px 16px',display:'inline-block'}}><p style={{fontSize:13,color:'rgba(255,255,255,0.5)',marginBottom:4}}>Your income gap to desired life</p><p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.3rem',fontWeight:900,color:incomeGap<=0?'#5DC130':'#EF8080'}}>{incomeGap<=0?'You already earn enough ✓':`${fmt(incomeGap)} short`}</p></div>)}</div>
+      <div className="fu d2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+        {[{title:'Current life',t:curr,accent:'var(--mid)'},{title:'Desired life',t:des,accent:'#7B2560'}].map((s,i)=>(<div key={i} style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'16px',boxShadow:'var(--shadow-xs)',textAlign:'center'}}><p style={{fontSize:12,fontWeight:700,color:s.accent,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:12}}>{s.title}</p><div style={{display:'flex',justifyContent:'center',marginBottom:8}}><DonutChart cats={s.t.cats} total={s.t.total} size={140} label={s.title.split(' ')[0]}/></div><p style={{fontFamily:"'Nunito',sans-serif",fontSize:'1.05rem',fontWeight:900,color:'var(--ink)'}}>{fmt(s.t.total)}<span style={{fontSize:12,fontWeight:400,color:'var(--ink-4)'}}>/mo</span></p></div>))}
+      </div>
+      <div className="fu d3" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',padding:'20px',marginBottom:16,boxShadow:'var(--shadow-xs)'}}><p style={{fontSize:12,fontWeight:700,color:'var(--ink-4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:16}}>Category by category</p><div style={{display:'flex',gap:16,marginBottom:12}}><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:10,height:10,borderRadius:3,background:'var(--mid)'}}/><span style={{fontSize:12,color:'var(--ink-3)'}}>Current</span></div><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:10,height:10,borderRadius:3,background:'#7B2560'}}/><span style={{fontSize:12,color:'var(--ink-3)'}}>Desired</span></div></div>
+        {allCats.map(cat=>{const c=currMap[cat]||0,d=desMap[cat]||0;if(c===0&&d===0)return null;const diff=d-c,cW=Math.round((c/maxCatVal)*100),dW=Math.round((d/maxCatVal)*100);return(<div key={cat} style={{marginBottom:14}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:5}}><span style={{fontSize:13,color:'var(--ink-2)',fontWeight:500}}>{cat}</span><span style={{fontSize:12,fontWeight:700,color:diff>0?'#7B2560':diff<0?'var(--mid)':'var(--ink-4)'}}>{diff>0?'+':diff<0?'':'±'}{fmt(diff)}</span></div><div style={{display:'flex',flexDirection:'column',gap:4}}>{[{v:c,w:cW,color:'var(--mid)',label:fmt(c)},{v:d,w:dW,color:'#7B2560',label:fmt(d)}].map((b,bi)=>(<div key={bi} style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:7,background:'var(--bg-2)',borderRadius:4,overflow:'hidden'}}><div style={{height:'100%',width:`${b.w}%`,background:b.color,borderRadius:4,transition:'width 0.8s cubic-bezier(0.4,0,0.2,1)'}}/></div><span style={{fontSize:11,color:'var(--ink-4)',minWidth:70,textAlign:'right'}}>{b.label}</span></div>))}</div></div>);})}
+      </div>
+      <div className="fu d4" style={{background:'var(--white)',border:'1px solid var(--border)',borderRadius:'var(--rad)',overflow:'hidden',marginBottom:16,boxShadow:'var(--shadow-xs)'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',background:'var(--bg-2)',padding:'10px 16px',borderBottom:'1px solid var(--border)'}}>{['',<span style={{color:'var(--mid)',fontWeight:700}}>Current</span>,<span style={{color:'#7B2560',fontWeight:700}}>Desired</span>].map((h,i)=>(<span key={i} style={{fontSize:12,fontWeight:700,color:'var(--ink-3)',textAlign:i>0?'right':'left'}}>{h}</span>))}</div>{[{l:'Essential',c:fmt(curr.essTotal),d:fmt(des.essTotal)},{l:'Lifestyle',c:fmt(curr.lifeTotal),d:fmt(des.lifeTotal)},{l:'Total / month',c:fmt(curr.total),d:fmt(des.total),bold:true},{l:'Total / year',c:fmt(curr.total*12),d:fmt(des.total*12)},{l:'Difference',c:'—',d:<span style={{color:'#7B2560',fontWeight:700}}>+{fmt(delta)}/mo</span>,bold:true}].map((r,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'11px 16px',borderBottom:i<4?'1px solid var(--border)':'none',background:r.bold?'var(--green-light)':'var(--white)'}}><span style={{fontSize:13,color:'var(--ink-2)',fontWeight:r.bold?700:400}}>{r.l}</span><span style={{fontSize:13,fontWeight:r.bold?700:400,color:'var(--ink)',textAlign:'right'}}>{r.c}</span><span style={{fontSize:13,fontWeight:r.bold?700:400,color:'var(--ink)',textAlign:'right'}}>{r.d}</span></div>))}</div>
+      <div className="fu d5" style={{background:'var(--lime-soft)',border:'1px solid rgba(93,193,48,0.2)',borderRadius:'var(--rad)',padding:'18px',marginBottom:20}}><p style={{fontSize:14,color:'var(--forest)',lineHeight:1.7,fontWeight:500}}>{delta<=0?`Your desired lifestyle actually costs less than your current one. You're already living above your ideal — or your ideal is beautifully minimal.`:incomeGap<=0&&currentIncome>0?`You already earn enough to live your desired life. The question is — what's stopping you from making the shift?`:`To live your desired life, you need to earn ${fmt(incomeGap)} more per month. That's your number. Now go get it.`}</p></div>
+      <div style={{display:'flex',gap:10}}><button onClick={onBack} style={{flex:1,padding:'13px',background:'var(--white)',color:'var(--ink-2)',border:'1px solid var(--border)',borderRadius:'var(--rad-xs)',fontFamily:'inherit',fontWeight:600,fontSize:14,cursor:'pointer'}}>← Back</button><button onClick={()=>window.print()} style={{flex:1,padding:'13px',background:'var(--forest)',color:'#fff',border:'none',borderRadius:'var(--rad-xs)',fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:14,cursor:'pointer'}}>Save PDF</button></div>
+    </main>
+  </div>);
 }
 
-/* ── App Root ─────────────────────────────────── */
-function App(){
+/* ────────────────────────────────────────────────────────────
+   ROOT — Auth gate + App state
+   ──────────────────────────────────────────────────────────── */
+function Root(){
+  // Show config screen immediately if keys are placeholders
+  if(KEYS_MISSING||!supabase) return <ConfigError/>;
+
+  const[authState,setAuthState]=useState('init');
+  const[sentEmail,setSentEmail]=useState('');
+  const[user,setUser]=useState(null);
   const[view,setView]=useState('landing');
   const[path,setPath]=useState('current');
-  const[loading,setLoading]=useState(false);
-  // Current life state
+  const[showLoader,setShowLoader]=useState(false);
   const[currIncome,setCurrIncome]=useState(0);
   const[currEss,setCurrEss]=useState(deepClone(EMPTY_ESS));
   const[currLife,setCurrLife]=useState(deepClone(EMPTY_LIFE));
-  // Desired life state
   const[desIncome,setDesIncome]=useState(0);
   const[desEss,setDesEss]=useState(deepClone(EMPTY_ESS));
   const[desLife,setDesLife]=useState(deepClone(EMPTY_LIFE));
-  // Track completion
   const[doneCurrent,setDoneCurrent]=useState(false);
   const[doneDesired,setDoneDesired]=useState(false);
+
+  useEffect(()=>{
+    const checkSession=async()=>{
+      try{
+        const{data:{session}}=await supabase.auth.getSession();
+        if(session?.user){setUser(session.user);await checkAccess(session.user);}
+        else setAuthState('login');
+      }catch(e){console.error(e);setAuthState('login');}
+    };
+    checkSession();
+    const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+      if(event==='SIGNED_IN'&&session?.user){setUser(session.user);await checkAccess(session.user);}
+      if(event==='SIGNED_OUT'){setUser(null);setAuthState('login');}
+    });
+    return()=>subscription.unsubscribe();
+  },[]);
+
+  const checkAccess=async(u)=>{
+    try{
+      const{data:profile}=await supabase.from('profiles').select('has_access').eq('id',u.id).single();
+      if(profile?.has_access){setAuthState('app');}
+      else{
+        await supabase.from('profiles').upsert({id:u.id,email:u.email,has_access:false},{onConflict:'id'});
+        setAuthState('code');
+      }
+    }catch(e){console.error(e);setAuthState('code');}
+  };
+
+  const handleSignOut=async()=>{
+    await supabase.auth.signOut();
+  };
 
   const isCurrent=path==='current';
   const income=isCurrent?currIncome:desIncome;
@@ -801,32 +697,28 @@ function App(){
   const life=isCurrent?currLife:desLife;
   const setLife=isCurrent?setCurrLife:setDesLife;
 
-  const goToResults=()=>{
-    setLoading(true);
-    // loading screen handles timing, then calls setLoading(false)
-  };
-
+  const goToResults=()=>setShowLoader(true);
   const afterLoad=()=>{
-    setLoading(false);
-    if(isCurrent)setDoneCurrent(true);
-    else setDoneDesired(true);
+    setShowLoader(false);
+    if(isCurrent)setDoneCurrent(true);else setDoneDesired(true);
     setView('results');
   };
 
-  if(loading)return<LoadingScreen onDone={afterLoad}/>;
-  if(view==='landing')return<LandingPage onCurrent={()=>{setPath('current');setView('input');}} onDesired={()=>{setPath('desired');setView('input');}}/>;
-  if(view==='input')return<InputPage path={path} income={income} setIncome={setIncome} ess={ess} setEss={setEss} life={life} setLife={setLife} onResults={goToResults} onBack={()=>setView('landing')}/>;
-  if(view==='results')return<ResultsPage path={path} income={income} ess={ess} life={life}
-    onBack={()=>setView('input')}
-    onDesiredLife={()=>{setPath('desired');setView('input');}}
-    onCompare={()=>setView('comparison')}
-    hasComparison={doneCurrent&&doneDesired}
-  />;
-  if(view==='comparison')return<ComparisonPage currentIncome={currIncome} desiredIncome={desIncome} currentEss={currEss} currentLife={currLife} desiredEss={desEss} desiredLife={desLife} onBack={()=>setView('results')}/>;
+  if(authState==='init')return<InitScreen/>;
+  if(authState==='login')return<LoginScreen onSent={email=>{setSentEmail(email);setAuthState('check-email');}}/>;
+  if(authState==='check-email')return<CheckEmailScreen email={sentEmail} onBack={()=>setAuthState('login')}/>;
+  if(authState==='code')return<AccessCodeScreen user={user} onGranted={()=>setAuthState('app')}/>;
+
+  // App — gated
+  if(showLoader)return<LoadingScreen onDone={afterLoad}/>;
+  if(view==='landing')return<LandingPage onCurrent={()=>{setPath('current');setView('input');}} onDesired={()=>{setPath('desired');setView('input');}} onSignOut={handleSignOut}/>;
+  if(view==='input')return<InputPage path={path} income={income} setIncome={setIncome} ess={ess} setEss={setEss} life={life} setLife={setLife} onResults={goToResults} onBack={()=>setView('landing')} onSignOut={handleSignOut}/>;
+  if(view==='results')return<ResultsPage path={path} income={income} ess={ess} life={life} onBack={()=>setView('input')} onDesiredLife={()=>{setPath('desired');setView('input');}} onCompare={()=>setView('comparison')} hasComparison={doneCurrent&&doneDesired} onSignOut={handleSignOut}/>;
+  if(view==='comparison')return<ComparisonPage currentIncome={currIncome} currentEss={currEss} currentLife={currLife} desiredEss={desEss} desiredLife={desLife} onBack={()=>setView('results')} onSignOut={handleSignOut}/>;
   return null;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
 </script>
 </body>
 </html>
