@@ -64,7 +64,7 @@ const SUPABASE_URL  = 'https://nswtjltxvzrfgehnlgky.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd3RqbHR4dnpyZmdlaG5sZ2t5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MjI1NTUsImV4cCI6MjA5MDQ5ODU1NX0.mliGqUey1fZPcSBRCeyY_X7357kt3nM1-fU2p3n8dgM';
 /* ──────────────────────────────────────────────────────────── */
 
-const supabase = supabase_js.createClient(SUPABASE_URL, SUPABASE_ANON, {
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
 
@@ -122,7 +122,7 @@ function LoginScreen({onSent}){
   const handleLogin=async()=>{
     if(!email||!email.includes('@'))return setError('Please enter a valid email address.');
     setError('');setLoading(true);
-    const{error:err}=await supabase.auth.signInWithOtp({
+    const{error:err}=await supabaseClient.auth.signInWithOtp({
       email,
       options:{emailRedirectTo:window.location.origin}
     });
@@ -211,7 +211,7 @@ function AccessCodeScreen({user,onGranted}){
     setError('');setLoading(true);
 
     // 1. Find code
-    const{data:codeRow,error:findErr}=await supabase
+    const{data:codeRow,error:findErr}=await supabaseClient
       .from('access_codes')
       .select('*')
       .eq('code',trimmed)
@@ -224,7 +224,7 @@ function AccessCodeScreen({user,onGranted}){
     }
 
     // 2. Mark code as used
-    const{error:updateErr}=await supabase
+    const{error:updateErr}=await supabaseClient
       .from('access_codes')
       .update({used:true,used_by:user.email})
       .eq('code',trimmed);
@@ -232,7 +232,7 @@ function AccessCodeScreen({user,onGranted}){
     if(updateErr){setLoading(false);return setError('Something went wrong. Please try again.');}
 
     // 3. Grant access in profiles
-    const{error:profileErr}=await supabase
+    const{error:profileErr}=await supabaseClient
       .from('profiles')
       .upsert({id:user.id,email:user.email,has_access:true},{onConflict:'id'});
 
@@ -625,13 +625,13 @@ function Root(){
   useEffect(()=>{
     const checkSession=async()=>{
       try{
-        const{data:{session}}=await supabase.auth.getSession();
+        const{data:{session}}=await supabaseClient.auth.getSession();
         if(session?.user){setUser(session.user);await checkAccess(session.user);}
         else setAuthState('login');
       }catch(e){console.error(e);setAuthState('login');}
     };
     checkSession();
-    const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+    const{data:{subscription}}=supabaseClient.auth.onAuthStateChange(async(event,session)=>{
       if(event==='SIGNED_IN'&&session?.user){setUser(session.user);await checkAccess(session.user);}
       if(event==='SIGNED_OUT'){setUser(null);setAuthState('login');}
     });
@@ -640,17 +640,17 @@ function Root(){
 
   const checkAccess=async(u)=>{
     try{
-      const{data:profile}=await supabase.from('profiles').select('has_access').eq('id',u.id).single();
+      const{data:profile}=await supabaseClient.from('profiles').select('has_access').eq('id',u.id).single();
       if(profile?.has_access){setAuthState('app');}
       else{
-        await supabase.from('profiles').upsert({id:u.id,email:u.email,has_access:false},{onConflict:'id'});
+        await supabaseClient.from('profiles').upsert({id:u.id,email:u.email,has_access:false},{onConflict:'id'});
         setAuthState('code');
       }
     }catch(e){console.error(e);setAuthState('code');}
   };
 
   const handleSignOut=async()=>{
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
   };
 
   const isCurrent=path==='current';
