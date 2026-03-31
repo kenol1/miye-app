@@ -61,7 +61,8 @@ const {useState,useEffect,useCallback,useRef,useMemo}=React;
    Get them from: supabase.com → your project → Settings → API
    ──────────────────────────────────────────────────────────── */
 const SUPABASE_URL  = 'https://nswtjltxvzrfgehnlgky.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd3RqbHR4dnpyZmdlaG5sZ2t5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MjI1NTUsImV4cCI6MjA5MDQ5ODU1NX0.mliGqUey1fZPcSBRCeyY_X7357kt3nM1-fU2p3n8dgM';──────────────────────────────────────────────────────────── */
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd3RqbHR4dnpyZmdlaG5sZ2t5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MjI1NTUsImV4cCI6MjA5MDQ5ODU1NX0.mliGqUey1fZPcSBRCeyY_X7357kt3nM1-fU2p3n8dgM';
+/* ──────────────────────────────────────────────────────────── */
 
 /* Guard — shows a clear error if keys are still placeholders */
 const KEYS_MISSING = !SUPABASE_URL.includes('.supabase.co') || SUPABASE_ANON.startsWith('eyYOUR');
